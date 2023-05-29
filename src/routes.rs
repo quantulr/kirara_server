@@ -6,7 +6,7 @@ use reqwest;
 use serde_derive::Deserialize;
 use serde_derive::Serialize;
 
-use crate::controller::user::login;
+use crate::controller::user::api::{login, register};
 
 #[get("/")]
 async fn hello() -> impl Responder {
@@ -56,6 +56,7 @@ pub fn api(cfg: &mut ServiceConfig) {
         web::scope("/user")
             .service(list_user)
             .service(login)
+            .service(register)
             .service(get_ip)
     );
 }
