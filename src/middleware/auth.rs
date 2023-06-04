@@ -1,7 +1,11 @@
 use std::collections::HashMap;
 use std::future::{ready, Ready};
 
-use actix_web::{body::EitherBody, dev::{self, Service, ServiceRequest, ServiceResponse, Transform}, Error, HttpResponse};
+use actix_web::{
+    body::EitherBody,
+    dev::{self, Service, ServiceRequest, ServiceResponse, Transform},
+    Error, HttpResponse,
+};
 use futures_util::future::LocalBoxFuture;
 
 // There are two steps in middleware processing.
@@ -14,10 +18,10 @@ pub struct Authentication;
 // `S` - type of the next service
 // `B` - type of response's body
 impl<S, B> Transform<S, ServiceRequest> for Authentication
-    where
-        S: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
-        S::Future: 'static,
-        B: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
 {
     type Response = ServiceResponse<EitherBody<B>>;
     type Error = Error;
@@ -35,10 +39,10 @@ pub struct AuthenticationMiddleware<S> {
 }
 
 impl<S, B> Service<ServiceRequest> for AuthenticationMiddleware<S>
-    where
-        S: Service<ServiceRequest, Response=ServiceResponse<B>, Error=Error>,
-        S::Future: 'static,
-        B: 'static,
+where
+    S: Service<ServiceRequest, Response = ServiceResponse<B>, Error = Error>,
+    S::Future: 'static,
+    B: 'static,
 {
     type Response = ServiceResponse<EitherBody<B>>;
     type Error = Error;
@@ -54,7 +58,7 @@ impl<S, B> Service<ServiceRequest> for AuthenticationMiddleware<S>
             let res = fut.await?.map_into_left_body();
             Ok(res)
         })
-        // if path == "/user/ip_addr" {
+        // if path == "/users/ip_addr" {
         //     let fut = self.service.call(req);
         //     Box::pin(async move {
         //         let res = fut.await?.map_into_left_body();
@@ -74,7 +78,8 @@ impl<S, B> Service<ServiceRequest> for AuthenticationMiddleware<S>
 }
 
 fn get_user_id_from_token(req: &ServiceRequest) -> Result<&str, &str> {
-    req.headers().get("Authorization")
+    req.headers()
+        .get("Authorization")
         .ok_or("can't get token from header")
         .and_then(|auth_header| auth_header.to_str().map_err(|_err| "can't stringify"))
         .and_then(|auth_str| {
