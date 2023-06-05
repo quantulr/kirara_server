@@ -1,21 +1,15 @@
-use actix_web::web::ServiceConfig;
-use actix_web::{get, post, web, HttpResponse, Responder};
-use futures_util::future::MaybeDone::Future;
-use futures_util::TryFutureExt;
-use reqwest;
-use serde_derive::Deserialize;
-use serde_derive::Serialize;
+use axum::response::Html;
+use axum::routing::{get, post};
+use axum::Router;
 
-use crate::controller::user::api::{login, register};
+use crate::controller::user::api::login;
 
-#[get("/")]
-async fn index() -> impl Responder {
-    HttpResponse::Ok()
-        .content_type("text/html")
-        .body("<h1>Hello world!</h1>")
+async fn index() -> Html<&'static str> {
+    Html("<h2 style='text-align: center;margin-top: 100px;'>hello, world</h2>")
 }
 
-pub fn api(cfg: &mut ServiceConfig) {
-    cfg.service(index)
-        .service(web::scope("/user").service(register).service(login));
+pub fn create_routes() -> Router {
+    Router::new()
+        .route("/", get(index))
+        .nest("/user", Router::new().route("/login", post(login)))
 }
