@@ -9,8 +9,8 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_derive::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::AppState;
 use crate::entities::users;
+use crate::AppState;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct LoginUser {
@@ -23,20 +23,23 @@ pub struct LoginResponse {
     token: String,
 }
 
-pub async fn login(State(state): State<Arc<AppState>>, form_data: Json<LoginUser>) -> Result<Json<users::Model>, (StatusCode, Json<Value>)> {
+pub async fn login(
+    State(state): State<Arc<AppState>>,
+    form_data: Json<LoginUser>,
+) -> Result<Json<users::Model>, (StatusCode, Json<Value>)> {
     let conn = &state.conn;
     let username = &form_data.username;
-    let user = users::Entity::find().filter(users::Column::Username.eq(username))
-        .one(conn).and_then(|rr| rr)
+    let user = users::Entity::find()
+        .filter(users::Column::Username.eq(username))
+        .one(conn)
         .await
         .expect("can't find user");
     match user {
-        Some(usr) => {
-            Ok(Json(usr))
-        }
-        None => {
-            Err((StatusCode::UNAUTHORIZED, Json(json!({"message":"该用户不存在"}))))
-        }
+        Some(usr) => Ok(Json(usr)),
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"message":"该用户不存在"})),
+        )),
     }
 }
 
