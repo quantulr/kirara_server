@@ -3,10 +3,12 @@ use std::sync::Arc;
 
 use sea_orm::{Database, DatabaseConnection};
 
+
 use crate::routes::create_routes;
 
 mod controller;
 mod entities;
+mod middleware;
 mod routes;
 
 #[derive(Clone)]
