@@ -1,13 +1,7 @@
-use serde::{Deserialize, Serialize};
+use serde_derive::{Deserialize, Serialize};
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct Signup {
-    pub user: SignupUser,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct SignupUser {
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct LoginUser {
     pub username: String,
-    pub email: String,
     pub password: String,
 }

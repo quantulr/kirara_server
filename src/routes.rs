@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
-use axum::handler::Handler;
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
-use sea_orm::DatabaseConnection;
 
 use crate::controller::user::api::{login, register};
 use crate::AppState;

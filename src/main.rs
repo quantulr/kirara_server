@@ -1,13 +1,7 @@
 use std::env;
 use std::sync::Arc;
 
-use axum::handler::HandlerWithoutStateExt;
-use axum::response::{Html, IntoResponse, Response};
-use axum::routing::get;
-use axum::{Json, Router};
 use sea_orm::{Database, DatabaseConnection};
-use serde_derive::{Deserialize, Serialize};
-use serde_json::{json, Value};
 
 use crate::routes::create_routes;
 
