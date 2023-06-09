@@ -8,5 +8,6 @@ pub struct LoginResponse {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
     pub username: String,
-    pub timestamp: String,
+    pub email: Option<String>,
+    pub exp: usize,
 }

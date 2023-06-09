@@ -5,15 +5,25 @@ use axum::http::{header, Request, StatusCode};
 use axum::Json;
 use axum::middleware::Next;
 use axum::response::IntoResponse;
+use jsonwebtoken::{Algorithm, DecodingKey, Validation};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
 
 use crate::AppState;
+use crate::controller::user::response::Claims;
+use crate::entities::users;
+
 
 pub async fn auth<B>(
-    State(_state): State<Arc<AppState>>,
+    State(state): State<Arc<AppState>>,
     req: Request<B>,
     next: Next<B>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
+    let skip_auth_routes = vec!["/user/login", "/user/register"];
+    let skip = skip_auth_routes.contains(&req.uri().to_string().as_str());
+    if skip {
+        return Ok(next.run(req).await);
+    }
     let auth_str = req
         .headers()
         .get(header::AUTHORIZATION)
@@ -25,11 +35,34 @@ pub async fn auth<B>(
                 None
             }
         });
-    let _token = match auth_str {
+    let token = match auth_str {
         Some(token) => token,
         None => {
             return Err((StatusCode::UNAUTHORIZED, Json(json!({"message":"未登录"}))));
         }
+    };
+    let token_data = match jsonwebtoken::decode::<Claims>(
+        &token,
+        &DecodingKey::from_secret("secret".as_ref()),
+        &Validation::new(Algorithm::HS512),
+    ) {
+        Ok(data) => data,
+        Err(err) => {
+            println!("{}", err);
+            return Err((StatusCode::UNAUTHORIZED, Json(json!({"message":"未登录"}))));
+        }
+    };
+    let username = token_data.claims.username;
+    let conn = &state.conn;
+    let user_model = users::Entity::find()
+        .filter(users::Column::Username.eq(username))
+        .one(conn)
+        .await;
+    let _user = match user_model {
+        Err(_) => {
+            return Err((StatusCode::UNAUTHORIZED, Json(json!({"message":"未登录"}))));
+        }
+        _ => {}
     };
     Ok(next.run(req).await)
 }

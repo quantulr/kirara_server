@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use sea_orm::{Database, DatabaseConnection};
 
-
 use crate::routes::create_routes;
 
 mod controller;

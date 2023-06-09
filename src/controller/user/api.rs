@@ -4,17 +4,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
-
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
-
 use serde_json::{json, Value};
 
+use crate::AppState;
 use crate::controller::user::request::LoginUser;
 use crate::controller::user::response::{Claims, LoginResponse};
 use crate::entities::users;
-
-use crate::AppState;
 
 pub async fn login(
     State(state): State<Arc<AppState>>,
@@ -55,18 +52,20 @@ pub async fn login(
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("Failed to get timestamp")
-        .as_millis()
-        .to_string();
+        .as_millis();
+
     let my_claims = Claims {
         username: user.username,
-        timestamp,
+        email: user.email,
+        exp: timestamp as usize,
     };
+
     let token = jsonwebtoken::encode(
         &header,
         &my_claims,
-        &EncodingKey::from_secret("my_secret".as_ref()),
+        &EncodingKey::from_secret("secret".as_ref()),
     )
-    .expect("生成token失败");
+        .expect("生成token失败");
     let login_resp = LoginResponse { token };
     Ok(Json(login_resp))
 }
