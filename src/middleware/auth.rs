@@ -2,24 +2,23 @@ use std::sync::Arc;
 
 use axum::extract::State;
 use axum::http::{header, Request, StatusCode};
-use axum::Json;
 use axum::middleware::Next;
 use axum::response::IntoResponse;
+use axum::Json;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
 
-use crate::AppState;
 use crate::controller::user::response::Claims;
 use crate::entities::users;
-
+use crate::AppState;
 
 pub async fn auth<B>(
     State(state): State<Arc<AppState>>,
     req: Request<B>,
     next: Next<B>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-    let skip_auth_routes = vec!["/user/login", "/user/register"];
+    let skip_auth_routes = vec!["/user/login", "/user/register", "/favicon.ico"];
     let skip = skip_auth_routes.contains(&req.uri().to_string().as_str());
     if skip {
         return Ok(next.run(req).await);

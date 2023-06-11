@@ -8,10 +8,10 @@ use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
 
-use crate::AppState;
 use crate::controller::user::request::LoginUser;
 use crate::controller::user::response::{Claims, LoginResponse};
 use crate::entities::users;
+use crate::AppState;
 
 pub async fn login(
     State(state): State<Arc<AppState>>,
@@ -53,11 +53,11 @@ pub async fn login(
         .duration_since(UNIX_EPOCH)
         .expect("Failed to get timestamp")
         .as_millis();
-
+    let exp_timestamp = timestamp + 1000 * 60 * 60 * 24 * 30;
     let my_claims = Claims {
         username: user.username,
         email: user.email,
-        exp: timestamp as usize,
+        exp: exp_timestamp as usize,
     };
 
     let token = jsonwebtoken::encode(
@@ -65,7 +65,7 @@ pub async fn login(
         &my_claims,
         &EncodingKey::from_secret("secret".as_ref()),
     )
-        .expect("生成token失败");
+    .expect("生成token失败");
     let login_resp = LoginResponse { token };
     Ok(Json(login_resp))
 }
