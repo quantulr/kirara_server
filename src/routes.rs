@@ -4,8 +4,8 @@ use axum::extract::DefaultBodyLimit;
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
-use sea_orm::sea_query::ColumnSpec::Default;
-use tower_http::limit::{RequestBodyLimit, RequestBodyLimitLayer};
+
+use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::controller::{
     image::api::upload_image,
