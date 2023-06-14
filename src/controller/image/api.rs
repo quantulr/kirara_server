@@ -11,7 +11,10 @@ use axum::extract::multipart::MultipartError;
 use axum::http::{header, HeaderName};
 use axum::Json;
 use axum::response::AppendHeaders;
+use image::ImageResult;
 use reqwest::StatusCode;
+use sea_orm::ActiveModelTrait;
+use sea_orm::ActiveValue::Set;
 use sea_orm::Order::Field;
 use serde_json::{json, Value};
 use tokio::fs::File;
@@ -19,6 +22,7 @@ use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use crate::{AppState, create_dir};
+use crate::entities::images;
 
 struct ImageFromUpload {
     length: usize,
@@ -27,13 +31,41 @@ struct ImageFromUpload {
     bytes: Bytes,
 }
 
+// pub async fn upload_test(mut multipart: Multipart) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+//     while let Ok(field_option) = multipart.next_field().await {
+//         if let Some(field) = field_option {
+//             let file_name = &field.file_name();
+//             let content_type = &field.content_type();
+//             let bytes = &field.bytes().await;
+//             match (file_name, content_type, bytes) {
+//                 (Some(file_name), Some(content_type), Ok(bytes)) => {}
+//                 _ => {}
+//             }
+//         } else {};
+//     }
+//     Ok(Json(json!({"fdsaf":"fesfsdf"})))
+// }
+
 pub async fn upload_image(State(state): State<Arc<AppState>>,
                           mut multipart: Multipart,
-) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, Bytes), (StatusCode, Json<Value>)> {
+) -> Result<Json<images::Model>, (StatusCode, Json<Value>)> {
     let upload_path = &state.upload_path;
     while let Ok(field_option) = multipart.next_field().await {
-        return if let Some(field) = field_option {
+        return if let Some(field) = field_option
+        /*.and_then(|field| {
+            if let Some(field_name) = field.name() {
+                if field_name.eq("file") {
+                    Some(field)
+                } else {
+                    None
+                }
+            } else {
+                None;
+            }
+        })*/
+        {
             let field_name = match field.name() {
+                //
                 Some(field_name) => {
                     if field_name.eq("file") {
                         field_name
@@ -85,19 +117,60 @@ pub async fn upload_image(State(state): State<Arc<AppState>>,
                     ));
                 }
             };
+            let image_data = image::load_from_memory(&file_bytes);
+            struct Size {
+                width: u32,
+                height: u32,
+            }
+            let size = match image_data {
+                Ok(image) => {
+                    Size {
+                        width: image.width(),
+                        height: image.height(),
+                    }
+                }
+                Err(_) => {
+                    return Err((
+                        StatusCode::NOT_FOUND,
+                        Json(json!({"message":"unknown file type!"})),
+                    ));
+                }
+            };
 
-            let formatted_date = chrono::Local::now().format("%Y/%m/%d").to_string();
+            let datetime_now = chrono::Local::now();
+            let formatted_date = datetime_now.format("%Y/%m/%d").to_string();
+            let timestamp_now = datetime_now.timestamp_millis();
             let target_file_name = format!("{}.{}", Uuid::new_v4().to_string().replace("-", ""), extensions);
-            let target_directory = Path::new(upload_path).join(formatted_date);
+            let target_directory = Path::new(upload_path).join(&formatted_date);
+
             create_dir(target_directory.to_str().unwrap()).await.expect("unable save file");
-            let target_file_path = target_directory.join(target_file_name);
-            let mut file = File::create(target_file_path).await.unwrap();
+
+            let target_file_path = target_directory.join(&target_file_name);
+            let mut file = File::create(target_file_path).await.expect("unable save file");
             let res = file.write_all(file_bytes.as_ref()).await;
 
-            Ok((
-                AppendHeaders([(header::CONTENT_TYPE, content_type)]),
-                file_bytes,
-            ))
+            match res {
+                Ok(_) => {
+                    let conn = &state.conn;
+                    let model = images::ActiveModel {
+                        file_path: Set(format!("{}/{}", &formatted_date, &target_file_name).to_owned()),
+                        file_name: Set(file_name.to_owned()),
+                        size: Set(file_bytes.len() as u64),
+                        width: Set(size.width as u64),
+                        height: Set(size.height as u64),
+                        upload_time: Set(timestamp_now as u64),
+                        uid: Set(1),
+                        ..Default::default()
+                    }.insert(conn).await.expect("failed");
+                    Ok(Json(model))
+                }
+                Err(err) => {
+                    Err((
+                        StatusCode::NOT_FOUND,
+                        Json(json!({"message":"file field required!"})),
+                    ))
+                }
+            }
         } else {
             Err((
                 StatusCode::NOT_FOUND,
