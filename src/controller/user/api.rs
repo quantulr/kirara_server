@@ -5,6 +5,7 @@ use axum::extract::State;
 use axum::http::StatusCode;
 use axum::Json;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use sea_orm::ActiveValue::Set;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
 
@@ -70,6 +71,40 @@ pub async fn login(
     Ok(Json(login_resp))
 }
 
-pub async fn register() -> Json<Value> {
-    Json(json!({"hello": "world"}))
+pub async fn register(
+    State(state): State<Arc<AppState>>,
+    form_data: Json<LoginUser>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let conn = &state.conn;
+    let username = &form_data.username;
+    let user_model = users::Entity::find()
+        .filter(users::Column::Username.eq(username))
+        .one(conn)
+        .await;
+    match user_model {
+        Ok(Some(_)) => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({"message":"user already exist!"})),
+            ));
+        }
+        Ok(None) => {}
+        Err(_) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"message":"database query error!"})),
+            ));
+        }
+    };
+    let user = users::ActiveModel {
+        username: Set(username.clone()),
+        password: Set(form_data.password.clone()),
+        email: Set(form_data.email.clone()),
+        ..Default::default()
+    };
+    let user_model = users::Entity::insert(user)
+        .exec(conn)
+        .await
+        .expect("insert user error");
+    Ok(Json(json!({"message":"register success!"})))
 }

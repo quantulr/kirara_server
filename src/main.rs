@@ -24,12 +24,18 @@ async fn create_dir(path: &str) -> Result<(), std::io::Error> {
     // 检查目录是否存在
     if let Ok(metadata) = metadata {
         if !metadata.is_dir() {
-            return Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "文件名与目录名冲突！"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::AlreadyExists,
+                "文件名与目录名冲突！",
+            ));
         }
     } else {
         // 目录不存在，创建目录
         if let Err(err) = tokio::fs::create_dir_all(path).await {
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, "目录创建失败"));
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "目录创建失败",
+            ));
         }
     }
     Ok(())
@@ -40,7 +46,9 @@ async fn main() {
     dotenvy::dotenv().ok();
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
     let upload_path = env::var("UPLOAD_PATH").expect("UPLOAD_PATH is not set in .env file");
-    create_dir(upload_path.as_str()).await.expect("directory create failed!");
+    create_dir(upload_path.as_str())
+        .await
+        .expect("directory create failed!");
     let conn = Database::connect(db_url)
         .await
         .expect("Database connection failed");

@@ -2,27 +2,44 @@ use std::sync::Arc;
 
 use axum::extract::State;
 use axum::http::{header, Request, StatusCode};
+use axum::Json;
 use axum::middleware::Next;
 use axum::response::IntoResponse;
-use axum::Json;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
 
+use crate::AppState;
 use crate::controller::user::response::Claims;
 use crate::entities::users;
-use crate::AppState;
+
+// 给定一个字符串，与一个数组中的正则表达式进行匹配，如果匹配成功，则返回true，否则返回false
+fn match_path_whitelist(str: &str) -> bool {
+    let regexps = vec![
+        r"^/image/\d{4}/\d{2}/\d{2}/\w+$",
+        r"^/user/login$",
+        r"^/user/register$",
+    ];
+    for regex in regexps {
+        let re = regex::Regex::new(regex).unwrap();
+        if re.is_match(str) {
+            return true;
+        }
+    }
+    false
+}
+
 
 pub async fn auth<B>(
     State(state): State<Arc<AppState>>,
     req: Request<B>,
     next: Next<B>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-    let skip_auth_routes = vec!["/user/login", "/user/register", "/favicon.ico"];
-    let skip = skip_auth_routes.contains(&req.uri().to_string().as_str());
+    let skip = match_path_whitelist(req.uri().path());
     if skip {
         return Ok(next.run(req).await);
     }
+
     let auth_str = req
         .headers()
         .get(header::AUTHORIZATION)

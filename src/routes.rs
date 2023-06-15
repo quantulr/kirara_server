@@ -4,9 +4,9 @@ use axum::extract::DefaultBodyLimit;
 use axum::response::Html;
 use axum::routing::{get, post};
 use axum::Router;
-
 use tower_http::limit::RequestBodyLimitLayer;
 
+use crate::controller::image::api::get_image;
 use crate::controller::{
     image::api::upload_image,
     user::api::{login, register},
@@ -33,7 +33,12 @@ pub fn create_routes(app_state: Arc<AppState>) -> Router {
                 .route("/login", post(login))
                 .route("/register", post(register)),
         )
-        .nest("/image", Router::new().route("/upload", post(upload_image)))
+        .nest(
+            "/image",
+            Router::new()
+                .route("/upload", post(upload_image))
+                .route("/:year/:month/:day/:file_name", get(get_image)),
+        )
         .layer(DefaultBodyLimit::disable())
         .layer(RequestBodyLimitLayer::new(
             250 * 1024 * 1024, /* 250mb */
