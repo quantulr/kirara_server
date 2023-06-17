@@ -1,116 +1,113 @@
-use std::io::Read;
+
+
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::body::StreamBody;
 use axum::extract::{Multipart, Path, State};
-use axum::extract::multipart::MultipartError;
-use axum::http::{header, HeaderMap, HeaderName, HeaderValue};
+
+use axum::http::{header, HeaderName};
 use axum::Json;
 use axum::response::AppendHeaders;
-use image::ImageResult;
+
 use reqwest::StatusCode;
-use sea_orm::ActiveModelTrait;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use sea_orm::ActiveValue::Set;
-use sea_orm::Order::Field;
-use sea_orm::sea_query::ArrayType::Bytes;
+
+
 use serde_json::{json, Value};
 use tokio::fs::File;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncWriteExt};
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
 use crate::{AppState, create_dir};
 use crate::entities::images;
 
-// pub async fn upload_test(mut multipart: Multipart) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-//     while let Ok(field_option) = multipart.next_field().await {
-//         if let Some(field) = field_option {
-//             let file_name = &field.file_name();
-//             let content_type = &field.content_type();
-//             let bytes = &field.bytes().await;
-//             match (file_name, content_type, bytes) {
-//                 (Some(file_name), Some(content_type), Ok(bytes)) => {}
-//                 _ => {}
-//             }
-//         } else {};
-//     }
-//     Ok(Json(json!({"fdsaf":"fesfsdf"})))
-// }
+use crate::utils::image::{get_content_type, is_image};
 
+// 上传图片
 pub async fn upload_image(
     State(state): State<Arc<AppState>>,
     mut multipart: Multipart,
 ) -> Result<Json<images::Model>, (StatusCode, Json<Value>)> {
-    let upload_path = &state.upload_path;
+    let upload_path = &state.upload_path;  // 上传路径
+    // 读取第一个字段
     while let Ok(field_option) = multipart.next_field().await {
-        return if let Some(field) = field_option
-        /*.and_then(|field| {
-            if let Some(field_name) = field.name() {
-                if field_name.eq("file") {
-                    Some(field)
+        return if let Some(field) = field_option {
+            // 获取字段名，如果不是file，则返回错误
+            let _field_name = match field.name() {
+                Some(field_name) => if field_name.eq("file") {
+                    field_name
                 } else {
-                    None
-                }
-            } else {
-                None;
-            }
-        })*/
-        {
-            let field_name = match field.name() {
-                //
-                Some(field_name) => {
-                    if field_name.eq("file") {
-                        field_name
-                    } else {
-                        continue;
-                    }
-                }
+                    return Err((
+                        StatusCode::NOT_FOUND,
+                        Json(json!({"message":"文件上传失败！"})),
+                    ));
+                },
                 None => {
                     return Err((
                         StatusCode::NOT_FOUND,
-                        Json(json!({"message":"file field required!"})),
+                        Json(json!({"message":"文件上传失败！"})),
                     ));
                 }
             };
-            let file_name = match field.file_name() {
-                Some(file_name) => file_name.to_owned(),
-                None => {
-                    return Err((
-                        StatusCode::NOT_FOUND,
-                        Json(json!({"message":"file field required!"})),
-                    ));
-                }
-            };
+
+            // 获取content_type
             let content_type = match field.content_type() {
                 Some(content_type) => content_type.to_owned(),
                 None => {
                     return Err((
                         StatusCode::NOT_FOUND,
-                        Json(json!({"message":"file field required!"})),
+                        Json(json!({"message":"文件上传失败！"})),
                     ));
                 }
             };
 
+            // 判断是否是图片
+            if !is_image(content_type.as_str()) {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(json!({"message":"请上传图片！"})),
+                ));
+            }
+
+            // 获取文件名
+            let file_name = match field.file_name() {
+                Some(file_name) => file_name.to_owned(),
+                None => {
+                    return Err((
+                        StatusCode::NOT_FOUND,
+                        Json(json!({"message":"文件上传失败！"})),
+                    ));
+                }
+            };
+
+            // 获取文件后缀名
+            let file_extension = match PathBuf::from(&file_name).extension() {
+                Some(file_extension) => file_extension.to_str().unwrap().to_owned(),
+                None => {
+                    return Err((
+                        StatusCode::NOT_FOUND,
+                        Json(json!({"message":"文件上传失败！"})),
+                    ));
+                }
+            };
+
+
+            // 读取文件内容
             let file_bytes = match field.bytes().await {
                 Ok(bytes) => bytes,
                 Err(_) => {
                     return Err((
                         StatusCode::NOT_FOUND,
-                        Json(json!({"message":"file upload failed!"})),
-                    ));
-                }
-            };
-            let extensions = match mime_guess::get_mime_extensions_str(content_type.as_str()) {
-                Some(ext) => ext.first().unwrap(),
-                None => {
-                    return Err((
-                        StatusCode::NOT_FOUND,
-                        Json(json!({"message":"unknown file type!"})),
+                        Json(json!({"message":"文件上传失败！"})),
                     ));
                 }
             };
             let image_data = image::load_from_memory(&file_bytes);
+
+            // 获取图片尺寸
             struct Size {
                 width: u32,
                 height: u32,
@@ -123,35 +120,36 @@ pub async fn upload_image(
                 Err(_) => {
                     return Err((
                         StatusCode::NOT_FOUND,
-                        Json(json!({"message":"unknown file type!"})),
+                        Json(json!({"message":"unknown file type!443434"})),
                     ));
                 }
             };
 
-            let datetime_now = chrono::Local::now();
-            let formatted_date = datetime_now.format("%Y/%m/%d").to_string();
-            let timestamp_now = datetime_now.timestamp_millis();
+            let datetime_now = chrono::Local::now(); // 获取当前时间
+            let formatted_date = datetime_now.format("%Y/%m/%d").to_string(); // 格式化时间
+            let timestamp_now = datetime_now.timestamp_millis(); // 获取时间戳
             let target_file_name = format!(
                 "{}.{}",
                 Uuid::new_v4().to_string().replace("-", ""),
-                extensions
-            );
-            let target_directory = std::path::Path::new(upload_path).join(&formatted_date);
+                file_extension
+            ); // 生成文件名
+            let target_directory = std::path::Path::new(upload_path).join(&formatted_date);  // 生成目录
 
             create_dir(target_directory.to_str().unwrap())
                 .await
-                .expect("unable save file");
+                .expect("unable save file"); // 创建目录
 
-            let target_file_path = target_directory.join(&target_file_name);
-            let mut file = File::create(target_file_path)
+            let target_file_path = target_directory.join(&target_file_name); // 生成文件路径
+            let mut file = File::create(&target_file_path)
                 .await
-                .expect("unable save file");
-            let res = file.write_all(file_bytes.as_ref()).await;
+                .expect("unable save file"); // 创建文件
+            let res = &file.write_all(file_bytes.as_ref()).await; // 写入文件
 
+            // 保存到数据库
             match res {
                 Ok(_) => {
                     let conn = &state.conn;
-                    let model = images::ActiveModel {
+                    let model_res = images::ActiveModel {
                         file_path: Set(
                             format!("{}/{}", &formatted_date, &target_file_name).to_owned()
                         ),
@@ -164,58 +162,95 @@ pub async fn upload_image(
                         ..Default::default()
                     }
                         .insert(conn)
-                        .await
-                        .expect("failed");
+                        .await;
+                    let model = match model_res {
+                        Ok(model) => model,
+                        Err(db_err) => {
+                            let err_msg = db_err.to_string(); // 获取错误信息
+                            // 从本地删除文件
+                            let _ = tokio::fs::remove_file(&target_file_path).await;
+                            return Err((
+                                StatusCode::NOT_FOUND,
+                                Json(json!({"message":&err_msg})),
+                            ));
+                        }
+                    };
                     Ok(Json(model))
                 }
-                Err(err) => Err((
+                Err(_err) => Err((
                     StatusCode::NOT_FOUND,
-                    Json(json!({"message":"file field required!"})),
+                    Json(json!({"message":"文件上传失败！"})),
                 )),
             }
         } else {
             Err((
                 StatusCode::NOT_FOUND,
-                Json(json!({"message":"file field required!"})),
+                Json(json!({"message":"文件上传失败！"})),
             ))
         };
     }
     Err((
         StatusCode::NOT_FOUND,
-        Json(json!({"message":"ファイルがアップロードされていません"})),
+        Json(json!({"message":"文件上传失败！"})),
     ))
 }
 
+// 获取图片
 pub async fn get_image(
     State(state): State<Arc<AppState>>,
-    Path((year, month, day, file_name)): Path<(u32, u32, u32, String)>,
-) -> Result<(AppendHeaders<[(HeaderName, String); 1]>, StreamBody<ReaderStream<tokio::fs::File>>), (StatusCode, Json<Value>)>
-{
-    let path = format!("{}/{}/{}/{}", year, month, day, file_name);
-    let upload_path = &state.upload_path;
-    let file_path = std::path::Path::new(upload_path).join(path.as_str());
-    // std::path::Path::new()
-    println!("{}", upload_path);
-    let mut file = match tokio::fs::File::open(file_path).await {
-        Ok(file) => file,
-        Err(_) => {
-            println!("{}", file_name);
+    Path((year, month, day, file_name)): Path<(String, String, String, String)>,
+) -> Result<
+    (
+        AppendHeaders<[(HeaderName, String); 2]>,
+        StreamBody<ReaderStream<tokio::fs::File>>,
+    ),
+    (StatusCode, Json<Value>),
+> {
+    let conn = &state.conn;
+
+    let path = format!("{}/{}/{}/{}", year, month, day, file_name); // 生成文件路径
+
+
+    let content_type = match get_content_type(file_name.as_str()) {
+        Some(content_type) => content_type,
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(json!({"message":"获取文件类型失败！"})),
+            ));
+        }
+    }; // 获取文件类型
+
+    let image = match images::Entity::find().filter(
+        images::Column::FilePath.eq(&path)
+    ).one(conn).await {
+        Ok(Some(image)) => image,
+        _ => {
             return Err((
                 StatusCode::NOT_FOUND,
                 Json(json!({"message":"file not found!"})),
             ));
         }
     };
-    let stream = ReaderStream::new(file);
-    let body = StreamBody::new(stream);
+    let upload_path = &state.upload_path; // 获取上传路径
+    let file_path = std::path::Path::new(upload_path).join(path.as_str()); // 生成文件路径
 
-    // let content_type = mime_guess::get_mime_extensions_str(file_name.as_str())
-    //     .unwrap()
-    //     .first()
-    //     .unwrap()
-    //     .to_owned();
+    // 判断文件是否存在
+    let file = match File::open(file_path).await {
+        Ok(file) => file,
+        Err(_) => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(json!({"message":"file not found!"})),
+            ));
+        }
+    };
+    let stream = ReaderStream::new(file); // 生成流
+    let body = StreamBody::new(stream); // 生成body
+
+
     Ok((
-        AppendHeaders([(header::CONTENT_TYPE, "image/jpeg".to_string())]),
-        body
+        AppendHeaders([(header::CONTENT_TYPE, content_type), (header::CONTENT_DISPOSITION, format!("filename={}", image.file_name))]),
+        body,
     ))
 }

@@ -2,17 +2,17 @@ use std::sync::Arc;
 
 use axum::extract::DefaultBodyLimit;
 use axum::response::Html;
-use axum::routing::{get, post};
 use axum::Router;
+use axum::routing::{get, post};
 use tower_http::limit::RequestBodyLimitLayer;
 
-use crate::controller::image::api::get_image;
+use crate::AppState;
 use crate::controller::{
     image::api::upload_image,
     user::api::{login, register},
 };
+use crate::controller::image::api::get_image;
 use crate::middleware::auth::auth;
-use crate::AppState;
 
 async fn index() -> Html<&'static str> {
     Html("<h2 style='text-align: center;margin-top: 100px;'>hello, world</h2>")

@@ -9,6 +9,7 @@ mod controller;
 mod entities;
 mod middleware;
 mod routes;
+mod utils;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -31,7 +32,7 @@ async fn create_dir(path: &str) -> Result<(), std::io::Error> {
         }
     } else {
         // 目录不存在，创建目录
-        if let Err(err) = tokio::fs::create_dir_all(path).await {
+        if let Err(_err) = tokio::fs::create_dir_all(path).await {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "目录创建失败",

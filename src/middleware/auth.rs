@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use axum::http::{header, Request, StatusCode};
+use axum::http::{header, Method, Request, StatusCode};
 use axum::Json;
 use axum::middleware::Next;
 use axum::response::IntoResponse;
@@ -13,33 +13,33 @@ use crate::AppState;
 use crate::controller::user::response::Claims;
 use crate::entities::users;
 
-// 给定一个字符串，与一个数组中的正则表达式进行匹配，如果匹配成功，则返回true，否则返回false
-fn match_path_whitelist(str: &str) -> bool {
+fn should_skip_auth(str: &str, method: &Method) -> bool {
     let regexps = vec![
-        r"^/image/\d{4}/\d{2}/\d{2}/\w+$",
-        r"^/user/login$",
-        r"^/user/register$",
+        (r"^/image/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),
+        (r"^/user/login$", Method::POST),
+        (r"^/user/register$", Method::POST),
     ];
-    for regex in regexps {
+    for (regex, m) in regexps {
         let re = regex::Regex::new(regex).unwrap();
-        if re.is_match(str) {
+        if re.is_match(str) && m == *method {
             return true;
         }
     }
     false
 }
 
-
 pub async fn auth<B>(
     State(state): State<Arc<AppState>>,
     req: Request<B>,
     next: Next<B>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-    let skip = match_path_whitelist(req.uri().path());
+    // 如果请求的路径在白名单中，则直接跳过认证
+    let skip = should_skip_auth(req.uri().path(), req.method());
     if skip {
         return Ok(next.run(req).await);
     }
 
+    // 从请求头中获取token
     let auth_str = req
         .headers()
         .get(header::AUTHORIZATION)
@@ -51,30 +51,34 @@ pub async fn auth<B>(
                 None
             }
         });
+    // 如果token不存在，则返回未登录的错误
     let token = match auth_str {
         Some(token) => token,
         None => {
             return Err((StatusCode::UNAUTHORIZED, Json(json!({"message":"未登录"}))));
         }
     };
+    // 如果token存在，则进行解析
     let token_data = match jsonwebtoken::decode::<Claims>(
         &token,
         &DecodingKey::from_secret("secret".as_ref()),
         &Validation::new(Algorithm::HS512),
     ) {
         Ok(data) => data,
-        Err(err) => {
-            println!("{}", err);
+        Err(_err) => {
             return Err((StatusCode::UNAUTHORIZED, Json(json!({"message":"未登录"}))));
         }
     };
-    let username = token_data.claims.username;
-    let conn = &state.conn;
+    let username = token_data.claims.username; // 获取用户名
+    let conn = &state.conn; // 获取数据库连接
+    // 从数据库中查找用户
     let user_model = users::Entity::find()
         .filter(users::Column::Username.eq(username))
         .one(conn)
         .await;
-    let _user = match user_model {
+
+    // 如果用户不存在，则返回未登录的错误
+    match user_model {
         Err(_) => {
             return Err((StatusCode::UNAUTHORIZED, Json(json!({"message":"未登录"}))));
         }

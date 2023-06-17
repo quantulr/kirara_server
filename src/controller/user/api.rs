@@ -102,7 +102,7 @@ pub async fn register(
         email: Set(form_data.email.clone()),
         ..Default::default()
     };
-    let user_model = users::Entity::insert(user)
+    let _user_model = users::Entity::insert(user)
         .exec(conn)
         .await
         .expect("insert user error");
