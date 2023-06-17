@@ -1103,7 +1103,6 @@ dependencies = [
  "dotenvy",
  "image",
  "jsonwebtoken",
- "mime_guess",
  "regex",
  "reqwest",
  "sea-orm",
