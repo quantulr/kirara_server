@@ -18,7 +18,6 @@ pub struct AppState {
 }
 
 async fn create_dir(path: &str) -> Result<(), std::io::Error> {
-    println!("{}", path);
     // 使用 Tokio 的异步文件系统操作检查目录是否存在
     let metadata = tokio::fs::metadata(path).await;
 

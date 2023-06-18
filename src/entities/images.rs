@@ -4,6 +4,7 @@ use sea_orm::entity::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
 #[sea_orm(table_name = "images")]
 pub struct Model {
     #[sea_orm(primary_key)]
@@ -16,6 +17,7 @@ pub struct Model {
     pub width: u64,
     pub height: u64,
     pub upload_time: u64,
+    #[serde(skip_serializing)]
     pub uid: i64,
 }
 

@@ -2,16 +2,16 @@ use std::sync::Arc;
 
 use axum::extract::State;
 use axum::http::{header, Method, Request, StatusCode};
-use axum::Json;
 use axum::middleware::Next;
 use axum::response::IntoResponse;
+use axum::Json;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
 
-use crate::AppState;
 use crate::controller::user::response::Claims;
 use crate::entities::users;
+use crate::AppState;
 
 fn should_skip_auth(str: &str, method: &Method) -> bool {
     let regexps = vec![
@@ -71,7 +71,7 @@ pub async fn auth<B>(
     };
     let username = token_data.claims.username; // 获取用户名
     let conn = &state.conn; // 获取数据库连接
-    // 从数据库中查找用户
+                            // 从数据库中查找用户
     let user_model = users::Entity::find()
         .filter(users::Column::Username.eq(username))
         .one(conn)

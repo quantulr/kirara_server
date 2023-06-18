@@ -1,50 +1,93 @@
-
-
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::body::StreamBody;
-use axum::extract::{Multipart, Path, State};
-
+use axum::extract::{Multipart, Path, Query, State, TypedHeader};
+use axum::headers::authorization::Bearer;
+use axum::headers::Authorization;
 use axum::http::{header, HeaderName};
-use axum::Json;
 use axum::response::AppendHeaders;
-
+use axum::Json;
+use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use reqwest::StatusCode;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use sea_orm::ActiveValue::Set;
-
-
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde_json::{json, Value};
 use tokio::fs::File;
-use tokio::io::{AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
-use crate::{AppState, create_dir};
-use crate::entities::images;
-
+use crate::controller::image::request::Pagination;
+use crate::controller::image::response::ImageHistoryResponse;
+use crate::controller::user::response::Claims;
+use crate::entities::{images, users};
 use crate::utils::image::{get_content_type, is_image};
+use crate::{create_dir, AppState};
 
 // 上传图片
 pub async fn upload_image(
     State(state): State<Arc<AppState>>,
+    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     mut multipart: Multipart,
 ) -> Result<Json<images::Model>, (StatusCode, Json<Value>)> {
-    let upload_path = &state.upload_path;  // 上传路径
-    // 读取第一个字段
+    let upload_path = &state.upload_path; // 上传路径
+    let conn = &state.conn; // 数据库连接
+    let token = auth.token(); // token
+
+    // 从token中获取用户名
+    let username = match jsonwebtoken::decode::<Claims>(
+        token,
+        &DecodingKey::from_secret("secret".as_ref()),
+        &Validation::new(Algorithm::HS512),
+    ) {
+        Ok(data) => data.claims.username,
+        Err(err) => {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(json!({
+                    "message": format!("文件上传失败！{}", err)
+                })),
+            ));
+        }
+    };
+    // 从数据库中获取用户id
+    let uid = match users::Entity::find()
+        .filter(users::Column::Username.eq(username))
+        .one(conn)
+        .await
+    {
+        Ok(Some(user)) => user.id,
+        Err(err) => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "message": format!("文件上传失败！{}", err)
+                })),
+            ));
+        }
+        Ok(None) => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(json!({"message":"文件上传失败！222"})),
+            ));
+        }
+    };
+
     while let Ok(field_option) = multipart.next_field().await {
         return if let Some(field) = field_option {
             // 获取字段名，如果不是file，则返回错误
-            let _field_name = match field.name() {
-                Some(field_name) => if field_name.eq("file") {
-                    field_name
-                } else {
-                    return Err((
-                        StatusCode::NOT_FOUND,
-                        Json(json!({"message":"文件上传失败！"})),
-                    ));
-                },
+            match field.name() {
+                Some(field_name) => {
+                    if field_name.eq("file") {
+                        field_name
+                    } else {
+                        return Err((
+                            StatusCode::NOT_FOUND,
+                            Json(json!({"message":"文件上传失败！"})),
+                        ));
+                    }
+                }
                 None => {
                     return Err((
                         StatusCode::NOT_FOUND,
@@ -94,7 +137,6 @@ pub async fn upload_image(
                 }
             };
 
-
             // 读取文件内容
             let file_bytes = match field.bytes().await {
                 Ok(bytes) => bytes,
@@ -133,7 +175,7 @@ pub async fn upload_image(
                 Uuid::new_v4().to_string().replace("-", ""),
                 file_extension
             ); // 生成文件名
-            let target_directory = std::path::Path::new(upload_path).join(&formatted_date);  // 生成目录
+            let target_directory = std::path::Path::new(upload_path).join(&formatted_date); // 生成目录
 
             create_dir(target_directory.to_str().unwrap())
                 .await
@@ -148,7 +190,6 @@ pub async fn upload_image(
             // 保存到数据库
             match res {
                 Ok(_) => {
-                    let conn = &state.conn;
                     let model_res = images::ActiveModel {
                         file_path: Set(
                             format!("{}/{}", &formatted_date, &target_file_name).to_owned()
@@ -158,20 +199,20 @@ pub async fn upload_image(
                         width: Set(size.width as u64),
                         height: Set(size.height as u64),
                         upload_time: Set(timestamp_now as u64),
-                        uid: Set(1),
+                        uid: Set(uid),
                         ..Default::default()
                     }
-                        .insert(conn)
-                        .await;
+                    .insert(conn)
+                    .await;
                     let model = match model_res {
                         Ok(model) => model,
                         Err(db_err) => {
                             let err_msg = db_err.to_string(); // 获取错误信息
-                            // 从本地删除文件
+                                                              // 从本地删除文件
                             let _ = tokio::fs::remove_file(&target_file_path).await;
                             return Err((
                                 StatusCode::NOT_FOUND,
-                                Json(json!({"message":&err_msg})),
+                                Json(json!({ "message": &err_msg })),
                             ));
                         }
                     };
@@ -210,7 +251,6 @@ pub async fn get_image(
 
     let path = format!("{}/{}/{}/{}", year, month, day, file_name); // 生成文件路径
 
-
     let content_type = match get_content_type(file_name.as_str()) {
         Some(content_type) => content_type,
         None => {
@@ -221,9 +261,11 @@ pub async fn get_image(
         }
     }; // 获取文件类型
 
-    let image = match images::Entity::find().filter(
-        images::Column::FilePath.eq(&path)
-    ).one(conn).await {
+    let image = match images::Entity::find()
+        .filter(images::Column::FilePath.eq(&path))
+        .one(conn)
+        .await
+    {
         Ok(Some(image)) => image,
         _ => {
             return Err((
@@ -248,9 +290,86 @@ pub async fn get_image(
     let stream = ReaderStream::new(file); // 生成流
     let body = StreamBody::new(stream); // 生成body
 
-
     Ok((
-        AppendHeaders([(header::CONTENT_TYPE, content_type), (header::CONTENT_DISPOSITION, format!("filename={}", image.file_name))]),
+        AppendHeaders([
+            (header::CONTENT_TYPE, content_type),
+            (
+                header::CONTENT_DISPOSITION,
+                format!("filename={}", image.file_name),
+            ),
+        ]),
         body,
     ))
+}
+
+// 获取图片上传历史
+pub async fn get_image_history(
+    State(state): State<Arc<AppState>>,
+    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
+    query: Query<Pagination>,
+) -> Result<Json<ImageHistoryResponse>, (StatusCode, Json<Value>)> {
+    let conn = &state.conn;
+    let token = auth.token(); // token
+
+    // 从token中获取用户名
+    let username = match jsonwebtoken::decode::<Claims>(
+        token,
+        &DecodingKey::from_secret("secret".as_ref()),
+        &Validation::new(Algorithm::HS512),
+    ) {
+        Ok(data) => data.claims.username,
+        Err(err) => {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "message": format!("图片获取失败, {}", err) })),
+            ));
+        }
+    };
+    // 从数据库中获取用户id
+    let uid = match users::Entity::find()
+        .filter(users::Column::Username.eq(username))
+        .one(conn)
+        .await
+    {
+        Ok(Some(user)) => user.id,
+        Err(err) => {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(json!({
+                    "message": format!("用户信息查询失败{}", err)
+                })),
+            ));
+        }
+        Ok(None) => {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"message":  "用户信息查询失败"})),
+            ));
+        }
+    };
+
+    let pagination = query.0;
+    let page = pagination.page;
+    let per_page = pagination.per_page;
+    let paginator = images::Entity::find()
+        .filter(images::Column::Uid.eq(uid))
+        .paginate(conn, per_page);
+    let images = paginator.fetch_page(page - 1).await;
+    let items_and_pages_number = paginator.num_items_and_pages().await;
+    return match (images, items_and_pages_number) {
+        (Ok(images), Ok(items_and_pages_number)) => {
+            let has_next = page < items_and_pages_number.number_of_pages;
+            let image_history_response = ImageHistoryResponse {
+                items: images,
+                total: items_and_pages_number.number_of_items,
+                total_pages: items_and_pages_number.number_of_pages,
+                has_next,
+            };
+            Ok(Json(image_history_response))
+        }
+        _ => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({"message":"图片查询失败！"})),
+        )),
+    };
 }
