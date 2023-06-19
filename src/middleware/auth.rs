@@ -69,6 +69,15 @@ pub async fn auth<B>(
             return Err((StatusCode::UNAUTHORIZED, Json(json!({"message":"未登录"}))));
         }
     };
+
+    // 如果token过期则返回未登录的错误
+    if token_data.claims.exp < chrono::Local::now().timestamp_millis() as usize {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"message":"登录已过期，请重新登录"})),
+        ));
+    }
+
     let username = token_data.claims.username; // 获取用户名
     let conn = &state.conn; // 获取数据库连接
                             // 从数据库中查找用户
@@ -79,10 +88,9 @@ pub async fn auth<B>(
 
     // 如果用户不存在，则返回未登录的错误
     match user_model {
-        Err(_) => {
+        Ok(Some(_user)) => Ok(next.run(req).await),
+        _ => {
             return Err((StatusCode::UNAUTHORIZED, Json(json!({"message":"未登录"}))));
         }
-        _ => {}
-    };
-    Ok(next.run(req).await)
+    }
 }

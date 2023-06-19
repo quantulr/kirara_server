@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -32,29 +31,29 @@ pub async fn login(
             } else {
                 return Err((
                     StatusCode::UNAUTHORIZED,
-                    Json(json!({"message":"wrong password!"})),
+                    Json(json!({"message":"密码错误！"})),
                 ));
             }
         }
         Ok(None) => {
             return Err((
                 StatusCode::NOT_FOUND,
-                Json(json!({"message":"can't found the user!"})),
+                Json(json!({"message":"用户不存在！"})),
             ));
         }
-        Err(_) => {
+        Err(err) => {
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"message":"database query error!"})),
+                Json(json!({ "message": format!("{}", err) })),
             ));
         }
     };
     let header = Header::new(Algorithm::HS512);
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Failed to get timestamp")
-        .as_millis();
+    let timestamp = chrono::Local::now().timestamp_millis();
+
+    // 有效期为30天
     let exp_timestamp = timestamp + 1000 * 60 * 60 * 24 * 30;
+
     let my_claims = Claims {
         username: user.username,
         email: user.email,
@@ -66,7 +65,7 @@ pub async fn login(
         &my_claims,
         &EncodingKey::from_secret("secret".as_ref()),
     )
-    .expect("生成token失败");
+        .expect("生成token失败");
     let login_resp = LoginResponse { token };
     Ok(Json(login_resp))
 }
@@ -77,6 +76,8 @@ pub async fn register(
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
     let conn = &state.conn;
     let username = &form_data.username;
+
+    // 检查用户名是否存在
     let user_model = users::Entity::find()
         .filter(users::Column::Username.eq(username))
         .one(conn)
@@ -85,16 +86,16 @@ pub async fn register(
         Ok(Some(_)) => {
             return Err((
                 StatusCode::BAD_REQUEST,
-                Json(json!({"message":"user already exist!"})),
+                Json(json!({"message":"用户名已存在！"})),
+            ));
+        }
+        Err(err) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "message": format!("{}", err) })),
             ));
         }
         Ok(None) => {}
-        Err(_) => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"message":"database query error!"})),
-            ));
-        }
     };
     let user = users::ActiveModel {
         username: Set(username.clone()),
@@ -106,5 +107,5 @@ pub async fn register(
         .exec(conn)
         .await
         .expect("insert user error");
-    Ok(Json(json!({"message":"register success!"})))
+    Ok(Json(json!({"message":"注册成功"})))
 }
