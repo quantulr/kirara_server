@@ -17,14 +17,14 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --release --verbose
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo test --release --verbose
     - name: Upload a Build Artifact
       uses: actions/upload-artifact@v3.1.2
       with:
         # Artifact name
         name: kirara_server
         # A file, directory or wildcard pattern that describes what to upload
-        path: target/release
+        path: target/release/kirara_server
         # The desired behavior if no files are found using the provided path.
