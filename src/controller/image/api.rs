@@ -69,7 +69,7 @@ pub async fn upload_image(
         Ok(None) => {
             return Err((
                 StatusCode::NOT_FOUND,
-                Json(json!({"message":"文件上传失败！222"})),
+                Json(json!({"message":"文件上传失败！"})),
             ));
         }
     };

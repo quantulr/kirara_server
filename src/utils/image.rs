@@ -21,10 +21,12 @@ pub fn is_image(content_type: &str) -> bool {
 }
 
 pub fn get_content_type(file_path: &str) -> Option<String> {
-    let file_extension = Path::new(file_path)
-        .extension()
-        .and_then(OsStr::to_str)
-        .unwrap_or("jpg");
+    let file_extension = match Path::new(file_path).extension().and_then(OsStr::to_str) {
+        Some(extension) => extension,
+        None => {
+            return None;
+        }
+    };
     let content_types = vec![
         ("jpg", "image/jpeg"),
         ("jpeg", "image/jpeg"),

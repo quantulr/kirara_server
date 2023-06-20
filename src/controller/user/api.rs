@@ -65,7 +65,7 @@ pub async fn login(
         &my_claims,
         &EncodingKey::from_secret("secret".as_ref()),
     )
-        .expect("生成token失败");
+    .expect("生成token失败");
     let login_resp = LoginResponse { token };
     Ok(Json(login_resp))
 }
