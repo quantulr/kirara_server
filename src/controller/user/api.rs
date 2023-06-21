@@ -63,7 +63,7 @@ pub async fn login(
     let token = jsonwebtoken::encode(
         &header,
         &my_claims,
-        &EncodingKey::from_secret("secret".as_ref()),
+        &EncodingKey::from_secret(&state.jwt_secret.as_ref()),
     )
     .expect("生成token失败");
     let login_resp = LoginResponse { token };

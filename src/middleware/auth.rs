@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
 use axum::extract::State;
+use axum::headers::authorization::Bearer;
+use axum::headers::Authorization;
 use axum::http::{header, Method, Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::IntoResponse;
-use axum::Json;
+use axum::{Json, TypedHeader};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
@@ -33,6 +35,7 @@ pub async fn auth<B>(
     req: Request<B>,
     next: Next<B>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
+    // auth_t
     // 如果请求的路径在白名单中，则直接跳过认证
     let skip = should_skip_auth(req.uri().path(), req.method());
     if skip {
@@ -61,7 +64,7 @@ pub async fn auth<B>(
     // 如果token存在，则进行解析
     let token_data = match jsonwebtoken::decode::<Claims>(
         &token,
-        &DecodingKey::from_secret("secret".as_ref()),
+        &DecodingKey::from_secret(&state.jwt_secret.as_ref()),
         &Validation::new(Algorithm::HS512),
     ) {
         Ok(data) => data,

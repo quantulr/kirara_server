@@ -18,10 +18,6 @@ async fn index() -> Html<&'static str> {
     Html("<h2 style='text-align: center;margin-top: 100px;'>hello, world</h2>")
 }
 
-// async fn favicon() {
-//     // ServeFile::new("/assets/favicon.png")
-// }
-
 pub fn create_routes(app_state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", get(index))

@@ -13,7 +13,30 @@ pub fn is_image(content_type: &str) -> bool {
         "image/svg+xml",
     ];
     for image_mime in image_mimes {
-        if content_type.to_owned().eq(image_mime) {
+        if content_type.eq(image_mime) {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn is_video(content_type: &str) -> bool {
+    let video_mimes = vec![
+        "video/mp4",
+        "video/ogg",
+        "video/webm",
+        "video/3gpp",
+        "video/3gpp2",
+        "video/avi",
+        "video/mpeg",
+        "video/quicktime",
+        "video/x-flv",
+        "video/x-matroska",
+        "video/x-ms-wmv",
+        "video/x-msvideo",
+    ];
+    for video_mime in video_mimes {
+        if content_type.eq(video_mime) {
             return true;
         }
     }
