@@ -20,6 +20,10 @@ fn should_skip_auth(str: &str, method: &Method) -> bool {
         (r"^/image/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),
         (r"^/user/login$", Method::POST),
         (r"^/user/register$", Method::POST),
+        (
+            r"^/image/thumbnail/\d{4}/\d{2}/\d{2}/\w+\.\w+$",
+            Method::GET,
+        ),
     ];
     for (regex, m) in regexps {
         let re = regex::Regex::new(regex).unwrap();

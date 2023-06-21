@@ -6,7 +6,7 @@ use axum::routing::{get, post};
 use axum::Router;
 use tower_http::limit::RequestBodyLimitLayer;
 
-use crate::controller::image::api::{get_image, get_image_history};
+use crate::controller::image::api::{get_image, get_image_history, image_thumbnail};
 use crate::controller::{
     image::api::upload_image,
     user::api::{login, register},
@@ -32,6 +32,10 @@ pub fn create_routes(app_state: Arc<AppState>) -> Router {
             Router::new()
                 .route("/upload", post(upload_image))
                 .route("/:year/:month/:day/:file_name", get(get_image))
+                .route(
+                    "/thumbnail/:year/:month/:day/:file_name",
+                    get(image_thumbnail),
+                )
                 .route("/history", get(get_image_history)),
         )
         .layer(DefaultBodyLimit::disable())
