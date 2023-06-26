@@ -3,28 +3,28 @@ use std::sync::Arc;
 
 use axum::body::StreamBody;
 use axum::extract::{Multipart, Path, Query, State, TypedHeader};
-use axum::headers::authorization::Bearer;
 use axum::headers::Authorization;
+use axum::headers::authorization::Bearer;
 use axum::http::{header, HeaderName};
-use axum::response::{AppendHeaders, IntoResponse};
 use axum::Json;
+use axum::response::{AppendHeaders, IntoResponse};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use reqwest::StatusCode;
-use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
+use sea_orm::ActiveValue::Set;
 use serde_json::{json, Value};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
+use crate::AppState;
 use crate::controller::image::request::Pagination;
 use crate::controller::image::response::ImageHistoryResponse;
 use crate::controller::user::response::Claims;
 use crate::entities::{images, users};
 use crate::utils::dir::create_dir;
 use crate::utils::media_type::{get_content_type, is_image};
-use crate::AppState;
 
 // 上传图片
 pub async fn upload_image(
@@ -200,13 +200,13 @@ pub async fn upload_image(
                     uid: Set(uid),
                     ..Default::default()
                 }
-                .insert(conn)
-                .await;
+                    .insert(conn)
+                    .await;
                 let model = match model_res {
                     Ok(model) => model,
                     Err(db_err) => {
                         let err_msg = db_err.to_string(); // 获取错误信息
-                                                          // 从本地删除文件
+                        // 从本地删除文件
                         let _ = tokio::fs::remove_file(&target_file_path).await;
                         return Err((StatusCode::NOT_FOUND, Json(json!({ "message": &err_msg }))));
                     }
@@ -370,10 +370,10 @@ pub async fn image_thumbnail(
     let path = format!("{}/{}/{}/{}", year, month, day, file_name); // 生成文件路径
 
     let body = match reqwest::get(format!(
-        "https://wsrv.nl/?url=https://kirara.hodokencho.com/api/image/{}",
+        "https://wsrv.nl/?url=https://kirara.hodokencho.com/api/image/{}&w=512",
         path
     ))
-    .await
+        .await
     {
         Ok(res) => res.bytes_stream(),
         Err(err) => {
