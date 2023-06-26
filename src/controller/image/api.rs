@@ -200,13 +200,13 @@ pub async fn upload_image(
                     uid: Set(uid),
                     ..Default::default()
                 }
-                    .insert(conn)
-                    .await;
+                .insert(conn)
+                .await;
                 let model = match model_res {
                     Ok(model) => model,
                     Err(db_err) => {
                         let err_msg = db_err.to_string(); // 获取错误信息
-                        // 从本地删除文件
+                                                          // 从本地删除文件
                         let _ = tokio::fs::remove_file(&target_file_path).await;
                         return Err((StatusCode::NOT_FOUND, Json(json!({ "message": &err_msg }))));
                     }
@@ -368,8 +368,21 @@ pub async fn image_thumbnail(
     Path((year, month, day, file_name)): Path<(String, String, String, String)>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
     let path = format!("{}/{}/{}/{}", year, month, day, file_name); // 生成文件路径
-    // TODO:
-    let body = reqwest::get("https://wsrv.nl/?url=https://www.google.com/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png").await.unwrap().bytes_stream();
+
+    let body = match reqwest::get(format!(
+        "https://wsrv.nl/?url=https://kirara.hodokencho.com/api/image/{}",
+        path
+    ))
+    .await
+    {
+        Ok(res) => res.bytes_stream(),
+        Err(err) => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(json!({"message":"获取缩略图失败！"})),
+            ));
+        }
+    };
     let stream = StreamBody::new(body); // 生成流
     let mime = match get_content_type(file_name.as_str()) {
         Some(content_type) => content_type,
