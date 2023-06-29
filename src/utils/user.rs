@@ -9,9 +9,10 @@ pub async fn get_user_from_token(
     secret: &str,
     conn: &DatabaseConnection,
 ) -> Option<users::Model> {
+    // 从token中获取用户名
     let username = match jsonwebtoken::decode::<Claims>(
-        &token,
-        &DecodingKey::from_secret(&secret.as_ref()),
+        token,
+        &DecodingKey::from_secret(secret.as_ref()),
         &Validation::new(Algorithm::HS512),
     ) {
         Ok(data) => data.claims.username,
@@ -19,6 +20,7 @@ pub async fn get_user_from_token(
             return None;
         }
     };
+    // 从数据库中获取用户
     if let Ok(Some(user)) = users::Entity::find()
         .filter(users::Column::Username.eq(username))
         .one(conn)

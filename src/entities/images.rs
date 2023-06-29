@@ -18,7 +18,7 @@ pub struct Model {
     pub height: u64,
     pub upload_time: u64,
     #[serde(skip_serializing)]
-    pub uid: i64,
+    pub uid: i32,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

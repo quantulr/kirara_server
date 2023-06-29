@@ -3,5 +3,5 @@
 pub mod prelude;
 
 pub mod images;
-pub mod users;
 pub mod media;
+pub mod users;

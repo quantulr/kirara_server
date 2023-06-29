@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use axum::headers::authorization::Bearer;
-use axum::headers::Authorization;
+
 use axum::http::{header, Method, Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::IntoResponse;
-use axum::{Json, TypedHeader};
+use axum::Json;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
@@ -20,7 +19,6 @@ fn should_skip_auth(str: &str, method: &Method) -> bool {
         (r"^/image/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),
         (r"^/user/login$", Method::POST),
         (r"^/user/register$", Method::POST),
-        (r"^/v/upload", Method::POST),
         (
             r"^/image/thumbnail/\d{4}/\d{2}/\d{2}/\w+\.\w+$",
             Method::GET,
