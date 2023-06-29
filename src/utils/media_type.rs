@@ -1,6 +1,7 @@
 use std::ffi::OsStr;
 use std::path::Path;
 
+// 判断是否是图片
 pub fn is_image(content_type: &str) -> bool {
     let image_mimes = vec![
         "image/jpeg",
@@ -20,6 +21,7 @@ pub fn is_image(content_type: &str) -> bool {
     false
 }
 
+// 判断是否是视频
 pub fn is_video(content_type: &str) -> bool {
     let video_mimes = vec![
         "video/mp4",
@@ -43,6 +45,15 @@ pub fn is_video(content_type: &str) -> bool {
     false
 }
 
+// 判断是否是图片或视频
+pub fn is_media(content_type: &str) -> bool {
+    if is_image(content_type) || is_video(content_type) {
+        return true;
+    }
+    false
+}
+
+// 获取文件的 MIME 类型
 pub fn get_content_type(file_path: &str) -> Option<String> {
     let file_extension = match Path::new(file_path).extension().and_then(OsStr::to_str) {
         Some(extension) => extension,
@@ -51,6 +62,7 @@ pub fn get_content_type(file_path: &str) -> Option<String> {
         }
     };
     let content_types = vec![
+        // image
         ("jpg", "image/jpeg"),
         ("jpeg", "image/jpeg"),
         ("png", "image/png"),
@@ -60,6 +72,19 @@ pub fn get_content_type(file_path: &str) -> Option<String> {
         ("tiff", "image/tiff"),
         ("ico", "image/x-icon"),
         ("svg", "image/svg+xml"),
+        // video
+        ("mp4", "video/mp4"),
+        ("ogg", "video/ogg"),
+        ("webm", "video/webm"),
+        ("3gp", "video/3gpp"),
+        ("3g2", "video/3gpp2"),
+        ("avi", "video/avi"),
+        ("mpeg", "video/mpeg"),
+        ("mov", "video/quicktime"),
+        ("flv", "video/x-flv"),
+        ("mkv", "video/x-matroska"),
+        ("wmv", "video/x-ms-wmv"),
+        ("avi", "video/x-msvideo"),
     ];
     for content_type in content_types {
         if file_extension.eq(content_type.0) {
