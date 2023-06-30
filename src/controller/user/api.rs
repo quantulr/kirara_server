@@ -1,18 +1,22 @@
+use std::future::Future;
 use std::sync::Arc;
 
 use axum::extract::State;
+use axum::headers::authorization::Bearer;
+use axum::headers::Authorization;
 use axum::http::StatusCode;
-use axum::Json;
+use axum::response::IntoResponse;
+use axum::{Json, TypedHeader};
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use sea_orm::ActiveValue::Set;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
 
-use crate::AppState;
-use crate::controller::user::request::{LoginUser, RegisterUser};
+use crate::controller::user::request::{LoginUser, RegisterUser, UpdateUser};
 use crate::controller::user::response::{Claims, LoginResponse};
 use crate::entities::users;
-
+use crate::utils::user::get_user_from_token;
+use crate::AppState;
 
 pub async fn login(
     State(state): State<Arc<AppState>>,
@@ -66,7 +70,7 @@ pub async fn login(
         &my_claims,
         &EncodingKey::from_secret(&state.jwt_secret.as_ref()),
     )
-        .expect("生成token失败");
+    .expect("生成token失败");
     let login_resp = LoginResponse { token };
     Ok(Json(login_resp))
 }
@@ -80,7 +84,6 @@ pub async fn register(
     let password = &form_data.password;
     let email = &form_data.email;
     let nickname = &form_data.nickname;
-
 
     // 检查用户名是否存在
     let user_model = users::Entity::find()
@@ -109,17 +112,64 @@ pub async fn register(
         nickname: Set(nickname.clone()),
         ..Default::default()
     };
-    match users::Entity::insert(user)
-        .exec(conn)
-        .await {
-        Ok(_) => {
-            Ok(Json(json!({"message":"注册成功"})))
+    match users::Entity::insert(user).exec(conn).await {
+        Ok(_) => Ok(Json(json!({"message":"注册成功"}))),
+        Err(err) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({ "message": format!("{}", err) })),
+        )),
+    }
+}
+
+pub async fn user_info(
+    State(state): State<Arc<AppState>>,
+    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
+) -> Result<Json<users::Model>, (StatusCode, Json<Value>)> {
+    let conn = &state.conn;
+    let jwt_secret = &state.jwt_secret;
+    let token = auth.token();
+    match get_user_from_token(token, jwt_secret, conn).await {
+        Some(user) => Ok(Json(user)),
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"message":"未登录！"})),
+        )),
+    }
+}
+
+pub async fn update_user(
+    State(state): State<Arc<AppState>>,
+    TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
+    Json(user_info): Json<UpdateUser>,
+) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
+    let token = auth.token();
+    let jwt_secret = &state.jwt_secret;
+    let conn = &state.conn;
+    match get_user_from_token(token, jwt_secret, conn).await {
+        Some(user_model) => {
+            let mut user: users::ActiveModel = user_model.into();
+
+            if let Some(nickname) = &user_info.nickname {
+                user.nickname = Set(nickname.to_owned());
+            }
+            if let Some(avatar) = &user_info.avatar {
+                user.avatar = Set(Some(avatar.to_owned()));
+            }
+            if let Some(gender) = &user_info.gender {
+                user.gender = Set(gender.to_owned());
+            }
+
+            match user.update(conn).await {
+                Ok(u) => Ok(Json(json!("更新成功"))),
+                Err(err) => Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "message": format!("{}", err) })),
+                )),
+            }
         }
-        Err(err) => {
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"message":format!("{}",err)})),
-            ))
-        }
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"message":"未登录！"})),
+        )),
     }
 }

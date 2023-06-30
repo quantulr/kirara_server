@@ -1,27 +1,30 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-
 use axum::http::{header, Method, Request, StatusCode};
+use axum::Json;
 use axum::middleware::Next;
 use axum::response::IntoResponse;
-use axum::Json;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
 
+use crate::AppState;
 use crate::controller::user::response::Claims;
 use crate::entities::users;
-use crate::AppState;
 
 fn should_skip_auth(str: &str, method: &Method) -> bool {
     let regexps = vec![
-        (r"^/image/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),
         (r"^/user/login$", Method::POST),
         (r"^/user/register$", Method::POST),
+        (r"^/v/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),
+        (r"^/image/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),
         (
             r"^/image/thumbnail/\d{4}/\d{2}/\d{2}/\w+\.\w+$",
             Method::GET,
+        ),
+        (
+            r"^/v/tv/2023/06/30/910a081669fc458c9fae01f3ba88b351\.mp4$", Method::GET
         ),
     ];
     for (regex, m) in regexps {
@@ -86,7 +89,7 @@ pub async fn auth<B>(
 
     let username = token_data.claims.username; // 获取用户名
     let conn = &state.conn; // 获取数据库连接
-                            // 从数据库中查找用户
+    // 从数据库中查找用户
     let user_model = users::Entity::find()
         .filter(users::Column::Username.eq(username))
         .one(conn)

@@ -2,14 +2,18 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use axum::{Json, TypedHeader};
-use axum::extract::{Multipart, State};
-use axum::headers::Authorization;
+use axum::body::StreamBody;
+use axum::extract::{Multipart, Path, State};
+use axum::headers::{Authorization, HeaderName};
 use axum::headers::authorization::Bearer;
-use axum::http::StatusCode;
-use sea_orm::ActiveModelTrait;
+use axum::http::{header, StatusCode};
+use axum::response::AppendHeaders;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use sea_orm::ActiveValue::Set;
 use serde_json::{json, Value};
 use tokio::io::AsyncWriteExt;
+use tokio_util::io::ReaderStream;
+use tower_http::services::ServeFile;
 
 use crate::AppState;
 use crate::entities::media;
@@ -87,11 +91,15 @@ pub async fn upload_media(
             }
         };
         // 生成存储文件名
-        let store_file_name = format!("{}.{}", uuid::Uuid::new_v4().to_string(), file_ext);
+        let store_file_name = format!("{}.{}", uuid::Uuid::new_v4().to_string().replace("-", ""), file_ext);
 
         let datetime_utc_now = chrono::Utc::now();
-        let path = datetime_utc_now.format("%Y/%m/%d").to_string();
-        let file_path = format!("{}/{}/{}", upload_path, path, store_file_name);
+        // 生成相对路径
+        let relative_path = datetime_utc_now.format("%Y/%m/%d").to_string();
+        // 生成存储文件路径
+        let file_store_path = std::path::Path::new(upload_path)
+            .join(&relative_path)
+            .join(&store_file_name);
 
         let file_bytes = match field.bytes().await {
             Ok(bytes) => bytes,
@@ -105,7 +113,7 @@ pub async fn upload_media(
             }
         };
 
-        match create_dir(format!("{}/{}", upload_path, path).as_str()).await {
+        match create_dir(format!("{}/{}", upload_path, &relative_path).as_str()).await {
             Err(err) => {
                 return Err((
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -116,9 +124,10 @@ pub async fn upload_media(
             }
             Ok(_) => {}
         };
-        let mut file = match tokio::fs::File::create(&file_path).await {
+        let mut file = match tokio::fs::File::create(&file_store_path).await {
             Ok(file) => file,
             Err(err) => {
+                println!("err: {}", err);
                 return Err((
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(json!({
@@ -132,7 +141,7 @@ pub async fn upload_media(
                 let resp = media::ActiveModel {
                     user_id: Set(uid),
                     name: Set(file_name),
-                    path: Set(file_path),
+                    path: Set(format!("{}/{}", &relative_path, &store_file_name)),
                     mime_type: Set(content_type),
                     size: Set(file_bytes.len() as i32),
                     ..Default::default()
@@ -140,21 +149,24 @@ pub async fn upload_media(
                     .insert(conn)
                     .await;
                 match resp {
-                    Ok(re) => Ok(Json(re)),
-                    Err(_) => Err((
+                    Ok(res) => Ok(Json(res)),
+                    Err(err) => Err((
                         StatusCode::INTERNAL_SERVER_ERROR,
                         Json(json!({
-                             "message": "存储文件失败！"
+                            "message": format!("存储文件失败！{}", err)
                         })),
                     )),
                 }
             }
-            Err(_) => Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "message": "存储文件失败！"
-                })),
-            )),
+            Err(err) => {
+                println!("err: {}", err);
+                Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({
+                        "message": format!("存储文件失败！{}", err)
+                    })),
+                ))
+            }
         };
     }
     Err((
@@ -162,5 +174,66 @@ pub async fn upload_media(
         Json(json!({
             "message": "上传内容为空！"
         })),
+    ))
+}
+
+pub async fn get_media(
+    State(state): State<Arc<AppState>>,
+    Path((year, month, day, file_name)): Path<(String, String, String, String)>,
+) -> Result<
+    (
+        AppendHeaders<[(HeaderName, String); 2]>,
+        StreamBody<ReaderStream<tokio::fs::File>>,
+    ),
+    (StatusCode, Json<Value>),
+> {
+    let res_file = ServeFile::new("/Volumes/iMac Doc/Pictures/upload/2023/06/30/910a081669fc458c9fae01f3ba88b351.mp4");
+    let conn = &state.conn;
+    let path = format!("{}/{}/{}/{}", year, month, day, file_name); // 生成文件路径
+    let media = match media::Entity::find()
+        .filter(media::Column::Path.eq(&path))
+        .one(conn).await {
+        Ok(Some(media)) => media,
+        Ok(None) => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "message": "文件不存在！"
+                })),
+            ));
+        }
+        Err(err) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "message": format!("获取文件失败！{}", err)
+                })),
+            ));
+        }
+    };
+    let file_path = format!("{}/{}", &state.upload_path, &path);
+    let body = match tokio::fs::File::open(&file_path).await {
+        Ok(file) => {
+            let stream = ReaderStream::new(file);
+            StreamBody::from(stream)
+        }
+        Err(err) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "message": format!("获取文件失败！{}", err)
+                })),
+            ));
+        }
+    };
+    Ok((
+        AppendHeaders([
+            (header::CONTENT_TYPE, media.mime_type),
+            (
+                header::CONTENT_DISPOSITION,
+                format!("filename=\"{}\"", media.name),
+            ),
+        ]),
+        body,
     ))
 }
