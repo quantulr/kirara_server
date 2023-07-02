@@ -20,6 +20,7 @@ fn should_skip_auth(str: &str, method: &Method) -> bool {
         (r"^/v/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),
         (r"^/v/s/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),
         (r"^/image/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),
+        (r"^/v/test$", Method::GET),
         (
             r"^/image/thumbnail/\d{4}/\d{2}/\d{2}/\w+\.\w+$",
             Method::GET,
