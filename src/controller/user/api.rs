@@ -1,11 +1,10 @@
-use std::future::Future;
 use std::sync::Arc;
 
 use axum::extract::State;
 use axum::headers::authorization::Bearer;
 use axum::headers::Authorization;
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
+
 use axum::{Json, TypedHeader};
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use sea_orm::ActiveValue::Set;
@@ -160,7 +159,7 @@ pub async fn update_user(
             }
 
             match user.update(conn).await {
-                Ok(u) => Ok(Json(json!("更新成功"))),
+                Ok(_u) => Ok(Json(json!("更新成功"))),
                 Err(err) => Err((
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(json!({ "message": format!("{}", err) })),

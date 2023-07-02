@@ -1,22 +1,25 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::{Json, TypedHeader};
-use axum::body::StreamBody;
+use axum::body::{boxed, Body, BoxBody, StreamBody};
 use axum::extract::{Multipart, Path, State};
-use axum::headers::{Authorization, HeaderName};
 use axum::headers::authorization::Bearer;
-use axum::http::{header, StatusCode};
-use axum::response::AppendHeaders;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
+use axum::headers::{Authorization, HeaderName, HeaderValue};
+use axum::http::{header, Method, Request, StatusCode, Uri};
+use axum::response::{AppendHeaders, Response};
+use axum::{Json, TypedHeader};
 use sea_orm::ActiveValue::Set;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
 use tokio::io::AsyncWriteExt;
 use tokio_util::io::ReaderStream;
+use tower::ServiceExt;
+
 use tower_http::services::ServeFile;
 
-use crate::AppState;
 use crate::entities::media;
+use crate::AppState;
+
 use crate::utils::dir::create_dir;
 use crate::utils::media_type::is_media;
 use crate::utils::user::get_user_from_token;
@@ -91,7 +94,11 @@ pub async fn upload_media(
             }
         };
         // 生成存储文件名
-        let store_file_name = format!("{}.{}", uuid::Uuid::new_v4().to_string().replace("-", ""), file_ext);
+        let store_file_name = format!(
+            "{}.{}",
+            uuid::Uuid::new_v4().to_string().replace("-", ""),
+            file_ext
+        );
 
         let datetime_utc_now = chrono::Utc::now();
         // 生成相对路径
@@ -146,8 +153,8 @@ pub async fn upload_media(
                     size: Set(file_bytes.len() as i32),
                     ..Default::default()
                 }
-                    .insert(conn)
-                    .await;
+                .insert(conn)
+                .await;
                 match resp {
                     Ok(res) => Ok(Json(res)),
                     Err(err) => Err((
@@ -187,12 +194,16 @@ pub async fn get_media(
     ),
     (StatusCode, Json<Value>),
 > {
-    let res_file = ServeFile::new("/Volumes/iMac Doc/Pictures/upload/2023/06/30/910a081669fc458c9fae01f3ba88b351.mp4");
+    let _res_file = ServeFile::new(
+        "/Volumes/iMac Doc/Pictures/upload/2023/06/30/910a081669fc458c9fae01f3ba88b351.mp4",
+    );
     let conn = &state.conn;
     let path = format!("{}/{}/{}/{}", year, month, day, file_name); // 生成文件路径
     let media = match media::Entity::find()
         .filter(media::Column::Path.eq(&path))
-        .one(conn).await {
+        .one(conn)
+        .await
+    {
         Ok(Some(media)) => media,
         Ok(None) => {
             return Err((
@@ -236,4 +247,72 @@ pub async fn get_media(
         ]),
         body,
     ))
+}
+
+pub async fn test_static_server(
+    State(state): State<Arc<AppState>>,
+    // state: State<Arc<AppState>>,
+    // request:Request<BoxBody>,
+    uri: Uri,
+    Path((year, month, day, file_name)): Path<(String, String, String, String)>,
+) -> Result<Response<BoxBody>, (StatusCode, Json<Value>)> {
+    let upload_path = &state.upload_path;
+    let conn = &state.conn;
+    let file_relative_path = format!("{}/{}/{}/{}", year, month, day, file_name);
+
+    let file_store_path = std::path::Path::new(upload_path)
+        .join(year)
+        .join(month)
+        .join(day)
+        .join(file_name);
+    let serve_file = ServeFile::new(file_store_path);
+
+    let req = Request::builder()
+        .uri(uri)
+        .method(Method::GET)
+        .body(Body::empty())
+        .unwrap();
+    let media_model = match media::Entity::find()
+        .filter(media::Column::Path.eq(&file_relative_path))
+        .one(conn)
+        .await
+    {
+        Ok(Some(media)) => media,
+        Ok(None) => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "message": "文件不存在！"
+                })),
+            ));
+        }
+        Err(_) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "message": "获取文件失败！"
+                })),
+            ));
+        }
+    };
+    match serve_file.oneshot(req).await {
+        Ok(mut res) => {
+            res.headers_mut().insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_str(&format!("{}; charset=utf-8", &media_model.mime_type))
+                    .unwrap(),
+            );
+            res.headers_mut().insert(
+                header::CONTENT_DISPOSITION,
+                HeaderValue::from_str(&format!("filename=\"{}\"", media_model.name)).unwrap(),
+            );
+            Ok(res.map(boxed))
+        }
+        Err(err) => Err((
+            StatusCode::NOT_FOUND,
+            Json(json!({
+                "message": format!("获取文件失败！{}", err)
+            })),
+        )),
+    }
 }
