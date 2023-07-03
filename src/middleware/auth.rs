@@ -17,10 +17,8 @@ fn should_skip_auth(str: &str, method: &Method) -> bool {
     let regexps = vec![
         (r"^/user/login$", Method::POST),
         (r"^/user/register$", Method::POST),
-        (r"^/v/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),
         (r"^/v/s/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),
         (r"^/image/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),
-        (r"^/v/test$", Method::GET),
         (
             r"^/image/thumbnail/\d{4}/\d{2}/\d{2}/\w+\.\w+$",
             Method::GET,
@@ -40,7 +38,6 @@ pub async fn auth<B>(
     req: Request<B>,
     next: Next<B>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
-    // auth_t
     // 如果请求的路径在白名单中，则直接跳过认证
     let skip = should_skip_auth(req.uri().path(), req.method());
     if skip {
@@ -59,6 +56,7 @@ pub async fn auth<B>(
                 None
             }
         });
+
     // 如果token不存在，则返回未登录的错误
     let token = match auth_str {
         Some(token) => token,
@@ -66,6 +64,7 @@ pub async fn auth<B>(
             return Err((StatusCode::UNAUTHORIZED, Json(json!({"message":"未登录"}))));
         }
     };
+
     // 如果token存在，则进行解析
     let token_data = match jsonwebtoken::decode::<Claims>(
         &token,
@@ -88,7 +87,8 @@ pub async fn auth<B>(
 
     let username = token_data.claims.username; // 获取用户名
     let conn = &state.conn; // 获取数据库连接
-                            // 从数据库中查找用户
+
+    // 从数据库中查找用户
     let user_model = users::Entity::find()
         .filter(users::Column::Username.eq(username))
         .one(conn)
