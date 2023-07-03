@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use axum::extract::DefaultBodyLimit;
-
 use axum::response::Html;
-use axum::routing::{get, patch, post};
+use axum::routing::{get, get_service, patch, post};
 use axum::Router;
-
 use tower_http::limit::RequestBodyLimitLayer;
+use tower_http::services::ServeFile;
 
 use crate::controller::media::api::{get_media_trunk, upload_media};
 use crate::controller::{
@@ -23,6 +22,7 @@ async fn index() -> Html<&'static str> {
 pub fn create_routes(app_state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", get(index))
+        .route_service("/favicon.ico", get_service(ServeFile::new("assets/favicon.png")))
         .nest(
             "/user",
             Router::new()
@@ -52,7 +52,7 @@ pub fn create_routes(app_state: Arc<AppState>) -> Router {
         .layer(RequestBodyLimitLayer::new(
             4096 * 1024 * 1024, /* 4GB */
         ))
-        .layer(axum::middleware::from_fn_with_state(
+        .route_layer(axum::middleware::from_fn_with_state(
             app_state.clone(),
             auth,
         ))

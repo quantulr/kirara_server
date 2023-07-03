@@ -15,6 +15,8 @@ use crate::AppState;
 
 fn should_skip_auth(str: &str, method: &Method) -> bool {
     let regexps = vec![
+        (r"^/$", Method::GET),
+        (r"^/favicon.ico$", Method::GET),
         (r"^/user/login$", Method::POST),
         (r"^/user/register$", Method::POST),
         (r"^/v/s/\d{4}/\d{2}/\d{2}/\w+\.\w+$", Method::GET),

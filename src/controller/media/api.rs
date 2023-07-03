@@ -149,7 +149,7 @@ pub async fn upload_media(
                     name: Set(file_name),
                     path: Set(format!("{}/{}", &relative_path, &store_file_name)),
                     mime_type: Set(content_type),
-                    size: Set(file_bytes.len() as i32),
+                    size: Set(file_bytes.len() as u64),
                     ..Default::default()
                 }
                 .insert(conn)
@@ -187,6 +187,7 @@ pub async fn get_media_trunk(
     State(state): State<Arc<AppState>>,
     Path((year, month, day, file_name)): Path<(String, String, String, String)>,
     req: Request<Limited<Body>>,
+    // req: Request<Body>
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
     let relative_path = format!("{}/{}/{}/{}", year, month, day, file_name);
     let upload_path = &state.upload_path;

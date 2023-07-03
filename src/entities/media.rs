@@ -14,7 +14,7 @@ pub struct Model {
     pub name: String,
     pub path: String,
     pub mime_type: String,
-    pub size: i32,
+    pub size: u64,
     pub created_at: DateTimeUtc,
 }
 
