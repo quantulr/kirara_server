@@ -22,7 +22,10 @@ async fn index() -> Html<&'static str> {
 pub fn create_routes(app_state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", get(index))
-        .route_service("/favicon.ico", get_service(ServeFile::new("assets/favicon.png")))
+        .route_service(
+            "/favicon.ico",
+            get_service(ServeFile::new("assets/favicon.png")),
+        )
         .nest(
             "/user",
             Router::new()

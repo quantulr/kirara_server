@@ -354,7 +354,7 @@ pub async fn get_image_history(
             Ok(Json(image_history_response))
         }
         _ => Err((
-            StatusCode::NOT_FOUND,
+            StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"message":"图片查询失败！"})),
         )),
     };
