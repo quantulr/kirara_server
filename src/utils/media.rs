@@ -96,26 +96,29 @@ pub fn get_content_type(file_path: &str) -> Option<String> {
 
 // 参数:视频的路径, 使用ffmpeg获取视频的缩略图
 pub async fn get_video_thumbnail(video_path: &str) -> Result<String, String> {
-    let thumbnail_path = format!("{}_thumb.jpg", video_path);
+    let frame_thumbnail_path = format!("{}.thumbnail.jpg", video_path);
+
     let output = tokio::process::Command::new("ffmpeg")
         .arg("-i")
         .arg(video_path)
         .arg("-y")
         .arg("-f")
-        .arg("mjpeg")
+        .arg("image2")
+        .arg("-vf")
+        .arg("thumbnail,scale=1280:-1")
+        .arg("-vframes")
+        .arg("1")
         .arg("-ss")
         .arg("1")
         .arg("-t")
         .arg("0.001")
-        .arg("-s")
-        .arg("320x240")
-        .arg(thumbnail_path.as_str())
+        .arg(frame_thumbnail_path.as_str())
         .output()
         .await;
     match output {
         Ok(output) => {
             if output.status.success() {
-                Ok(thumbnail_path)
+                Ok(frame_thumbnail_path)
             } else {
                 Err("failed to execute process".to_string())
             }
