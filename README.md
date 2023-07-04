@@ -1,1 +1,3 @@
 # kirara-server
+## required
+- ffmpeg
