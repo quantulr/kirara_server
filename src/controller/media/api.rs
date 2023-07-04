@@ -13,13 +13,12 @@ use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
 use tokio::io::AsyncWriteExt;
-
 use tower::ServiceExt;
 use tower_http::services::ServeFile;
 
 use crate::entities::media;
 use crate::utils::dir::create_dir;
-use crate::utils::media_type::is_media;
+use crate::utils::media::{get_video_thumbnail, is_media, is_video};
 use crate::utils::user::get_user_from_token;
 use crate::AppState;
 
@@ -92,12 +91,10 @@ pub async fn upload_media(
                 ));
             }
         };
+
+        let rand_uuid = uuid::Uuid::new_v4().to_string().replace("-", "");
         // 生成存储文件名
-        let store_file_name = format!(
-            "{}.{}",
-            uuid::Uuid::new_v4().to_string().replace("-", ""),
-            file_ext
-        );
+        let store_file_name = format!("{}.{}", &rand_uuid, file_ext);
 
         let datetime_utc_now = chrono::Utc::now();
         // 生成相对路径
@@ -144,6 +141,10 @@ pub async fn upload_media(
         };
         return match file.write_all(&file_bytes).await {
             Ok(_) => {
+                if is_video(&content_type) {
+                    let _thumb_path = get_video_thumbnail(&file_store_path.to_str().unwrap()).await;
+                }
+
                 let resp = media::ActiveModel {
                     user_id: Set(uid),
                     name: Set(file_name),

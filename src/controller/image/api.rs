@@ -25,7 +25,7 @@ use crate::controller::image::response::ImageHistoryResponse;
 use crate::controller::user::response::Claims;
 use crate::entities::{images, users};
 use crate::utils::dir::create_dir;
-use crate::utils::media_type::{get_content_type, is_image};
+use crate::utils::media::{get_content_type, is_image};
 use crate::AppState;
 
 // 上传图片
