@@ -2,4 +2,5 @@
 
 pub use super::images::Entity as Images;
 pub use super::media::Entity as Media;
+pub use super::posts::Entity as Posts;
 pub use super::users::Entity as Users;

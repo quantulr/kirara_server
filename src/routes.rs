@@ -8,6 +8,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::ServeFile;
 
 use crate::controller::media::api::{get_media_trunk, upload_media};
+use crate::controller::post::api::add_post;
 use crate::controller::{
     image::api::{get_image, get_image_history, image_thumbnail, upload_image},
     user::api::{login, register, update_user, user_info},
@@ -34,6 +35,7 @@ pub fn create_routes(app_state: Arc<AppState>) -> Router {
                 .route("/info", get(user_info))
                 .route("/update", patch(update_user)),
         )
+        .nest("/p", Router::new().route("/publish", post(add_post)))
         .nest(
             "/v",
             Router::new()

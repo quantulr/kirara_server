@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::extract::State;
 use axum::headers::authorization::Bearer;
-use axum::headers::Authorization;
+use axum::headers::{Authorization, UserAgent};
 use axum::http::StatusCode;
 
 use axum::{Json, TypedHeader};
@@ -19,6 +19,7 @@ use crate::AppState;
 
 pub async fn login(
     State(state): State<Arc<AppState>>,
+    TypedHeader(_user_agent): TypedHeader<UserAgent>,
     form_data: Json<LoginUser>,
 ) -> Result<Json<LoginResponse>, (StatusCode, Json<Value>)> {
     let conn = &state.conn;
