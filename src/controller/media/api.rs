@@ -18,7 +18,7 @@ use tower_http::services::ServeFile;
 
 use crate::entities::media;
 use crate::utils::dir::create_dir;
-use crate::utils::media::{get_video_thumbnail, is_media, is_video};
+use crate::utils::media::{get_image_thumbnail, get_video_thumbnail, is_image, is_media, is_video};
 use crate::utils::user::get_user_from_token;
 use crate::AppState;
 
@@ -143,6 +143,9 @@ pub async fn upload_media(
             Ok(_) => {
                 if is_video(&content_type) {
                     let _thumb_path = get_video_thumbnail(&file_store_path.to_str().unwrap()).await;
+                }
+                if is_image(&content_type) {
+                    let _thumb_path = get_image_thumbnail(&file_store_path.to_str().unwrap()).await;
                 }
 
                 let resp = media::ActiveModel {

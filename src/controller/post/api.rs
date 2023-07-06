@@ -18,10 +18,13 @@ pub async fn add_post(
     TypedHeader(auth): TypedHeader<Authorization<Bearer>>,
     Json(form_data): Json<PublishPostRequest>,
 ) -> Result<Json<posts::Model>, (StatusCode, Json<Value>)> {
+    // 数据库连接
     let conn = &state.conn;
+    // 获取用户
     let user = get_user_from_token(auth.token(), &state.jwt_secret, conn)
         .await
         .unwrap();
+    // 事务 - 发布帖子
     let ts_res = conn
         .transaction::<_, posts::Model, DbErr>(|txn| {
             Box::pin(async move {
@@ -44,7 +47,15 @@ pub async fn add_post(
                         .one(txn)
                         .await
                     {
-                        Ok(Some(media)) => media,
+                        Ok(Some(media)) => {
+                            if media.post_id.is_some() {
+                                return Err(DbErr::Custom(format!(
+                                    "发布帖子失败: {:?}",
+                                    "media already published"
+                                )));
+                            }
+                            media
+                        }
                         Ok(None) => {
                             return Err(DbErr::Custom(format!(
                                 "发布帖子失败: {:?}",
