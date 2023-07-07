@@ -126,22 +126,3 @@ pub async fn get_video_thumbnail(video_path: &str) -> Result<String, String> {
         Err(err) => Err(err.to_string()),
     }
 }
-
-// 参数:图片的路径, 使用image库获取图片的缩略图
-pub async fn get_image_thumbnail(image_path: &str) -> Result<String, String> {
-    let img = image::io::Reader::open(image_path)
-        .unwrap()
-        .decode()
-        .unwrap();
-    let ori_width = img.width();
-    let ori_height = img.height();
-    let aspect_ratio = ori_width as f32 / ori_height as f32;
-    let thumb_width = 1280;
-    let thumb_height = (thumb_width as f32 / aspect_ratio) as u32;
-    let thumb = img.thumbnail(thumb_width, thumb_height);
-    let thumb_path = format!("{}.thumbnail.jpg", image_path);
-    match thumb.save(thumb_path.as_str()) {
-        Ok(_) => Ok(thumb_path),
-        Err(err) => Err(err.to_string()),
-    }
-}

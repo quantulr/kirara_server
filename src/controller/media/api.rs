@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::body::Body;
+use axum::body::{Body, StreamBody};
 use axum::extract::{Multipart, Path, State};
 use axum::headers::authorization::Bearer;
 use axum::headers::{Authorization, HeaderValue};
@@ -18,7 +18,7 @@ use tower_http::services::ServeFile;
 
 use crate::entities::media;
 use crate::utils::dir::create_dir;
-use crate::utils::media::{get_image_thumbnail, get_video_thumbnail, is_image, is_media, is_video};
+use crate::utils::media::{get_video_thumbnail, is_image, is_media, is_video};
 use crate::utils::user::get_user_from_token;
 use crate::AppState;
 
@@ -144,9 +144,6 @@ pub async fn upload_media(
                 if is_video(&content_type) {
                     let _thumb_path = get_video_thumbnail(&file_store_path.to_str().unwrap()).await;
                 }
-                if is_image(&content_type) {
-                    let _thumb_path = get_image_thumbnail(&file_store_path.to_str().unwrap()).await;
-                }
 
                 let resp = media::ActiveModel {
                     user_id: Set(uid),
@@ -191,7 +188,6 @@ pub async fn get_media_trunk(
     State(state): State<Arc<AppState>>,
     Path((year, month, day, file_name)): Path<(String, String, String, String)>,
     req: Request<Limited<Body>>,
-    // req: Request<Body>
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
     let relative_path = format!("{}/{}/{}/{}", year, month, day, file_name);
     let upload_path = &state.upload_path;
@@ -233,5 +229,92 @@ pub async fn get_media_trunk(
                 "message": format!("获取文件失败！{}", err)
             })),
         )),
+    }
+}
+
+pub async fn get_media_thumb(
+    State(state): State<Arc<AppState>>,
+    Path((year, month, day, file_name)): Path<(String, String, String, String)>,
+    req: Request<Limited<Body>>,
+) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
+    let conn = &state.conn;
+    let upload_path = &state.upload_path;
+    let media = match media::Entity::find()
+        .filter(media::Column::Path.eq(format!("{}/{}/{}/{}", year, month, day, file_name)))
+        .one(conn)
+        .await
+    {
+        Ok(Some(media)) => media,
+        Ok(None) => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "message": "文件不存在！"
+                })),
+            ));
+        }
+        Err(err) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "message": format!("获取文件失败！{}", err)
+                })),
+            ));
+        }
+    };
+    let content_type = &media.mime_type;
+    let video_thumbnail_store_path =
+        std::path::Path::new(upload_path).join(format!("{}.thumbnail.jpg", &media.path));
+
+    if is_image(content_type) {
+        let response = match reqwest::get(format!(
+            "http://localhost:8080/?url=http://172.17.0.1:3000/v/s/{}&w=512",
+            &media.path
+        ))
+        .await
+        {
+            Ok(res) => res.bytes_stream(),
+            Err(err) => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({
+                        "message": format!("获取文件失败！{}", err)
+                    })),
+                ));
+            }
+        };
+        let stream = StreamBody::new(response);
+        Ok(stream.into_response())
+    } else if is_video(content_type) {
+        println!("is_video");
+        match ServeFile::new(&video_thumbnail_store_path)
+            .oneshot(req)
+            .await
+        {
+            Ok(mut res) => {
+                res.headers_mut().insert(
+                    header::CONTENT_DISPOSITION,
+                    HeaderValue::from_str(format!("filename={}", media.name).as_str()).unwrap(),
+                );
+                res.headers_mut().insert(
+                    header::CONTENT_TYPE,
+                    HeaderValue::from_str("image/jpeg").unwrap(),
+                );
+                Ok(res.into_response())
+            }
+            Err(err) => Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "message": format!("获取文件失败！{}", err)
+                })),
+            )),
+        }
+    } else {
+        Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({
+                "message": "文件类型不支持！"
+            })),
+        ))
     }
 }

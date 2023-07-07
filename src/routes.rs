@@ -7,7 +7,7 @@ use axum::Router;
 use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::ServeFile;
 
-use crate::controller::media::api::{get_media_trunk, upload_media};
+use crate::controller::media::api::{get_media_thumb, get_media_trunk, upload_media};
 use crate::controller::post::api::add_post;
 use crate::controller::{
     image::api::{get_image, get_image_history, image_thumbnail, upload_image},
@@ -40,7 +40,8 @@ pub fn create_routes(app_state: Arc<AppState>) -> Router {
             "/v",
             Router::new()
                 .route("/upload", post(upload_media))
-                .route("/s/:year/:month/:day/:file_name", get(get_media_trunk)),
+                .route("/s/:year/:month/:day/:file_name", get(get_media_trunk))
+                .route("/p/:year/:month/:day/:file_name", get(get_media_thumb)),
         )
         .nest(
             "/image",
