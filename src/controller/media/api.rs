@@ -239,6 +239,7 @@ pub async fn get_media_thumb(
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
     let conn = &state.conn;
     let upload_path = &state.upload_path;
+    let wsrv_nl_port = &state.wsrv_nl_port;
     let media = match media::Entity::find()
         .filter(media::Column::Path.eq(format!("{}/{}/{}/{}", year, month, day, file_name)))
         .one(conn)
@@ -268,8 +269,8 @@ pub async fn get_media_thumb(
 
     if is_image(content_type) {
         let response = match reqwest::get(format!(
-            "http://localhost:8080/?url=http://172.17.0.1:3000/v/s/{}&w=512",
-            &media.path
+            "http://localhost:{}/?url=http://172.17.0.1:3000/v/s/{}&w=512",
+            wsrv_nl_port, &media.path
         ))
         .await
         {
@@ -286,16 +287,11 @@ pub async fn get_media_thumb(
         let stream = StreamBody::new(response);
         Ok(stream.into_response())
     } else if is_video(content_type) {
-        println!("is_video");
         match ServeFile::new(&video_thumbnail_store_path)
             .oneshot(req)
             .await
         {
             Ok(mut res) => {
-                res.headers_mut().insert(
-                    header::CONTENT_DISPOSITION,
-                    HeaderValue::from_str(format!("filename={}", media.name).as_str()).unwrap(),
-                );
                 res.headers_mut().insert(
                     header::CONTENT_TYPE,
                     HeaderValue::from_str("image/jpeg").unwrap(),
