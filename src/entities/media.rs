@@ -12,6 +12,7 @@ pub struct Model {
     pub id: i32,
     pub user_id: i32,
     pub post_id: Option<i32>,
+    pub sort: Option<i32>,
     pub name: String,
     pub path: String,
     pub mime_type: String,

@@ -22,6 +22,7 @@ CREATE TABLE `media`
     `id`         int(11)             NOT NULL AUTO_INCREMENT,
     `user_id`    int(11)             NOT NULL COMMENT '用户id',
     `post_id`    int(11)                      DEFAULT NULL COMMENT '帖子id',
+    `sort`       int(11)                      DEFAULT NULL COMMENT '排序',
     `name`       varchar(255)        NOT NULL COMMENT '文件名',
     `path`       varchar(255)        NOT NULL COMMENT '文件路径',
     `mime_type`  varchar(255)        NOT NULL COMMENT '文件类型 mime type 例如：image/jpeg',
@@ -84,7 +85,7 @@ CREATE TABLE `posts`
 (
     `id`          int(11)      NOT NULL AUTO_INCREMENT,
     `user_id`     int(11)      NOT NULL COMMENT '用户id',
-#     帖子描述 可选
+    #            帖子描述 可选
     `description` varchar(255)          DEFAULT NULL COMMENT '帖子描述',
     `status`      tinyint(1)   NOT NULL DEFAULT '0' COMMENT '帖子状态 0：待审核 1：正常 2：禁用 3：删除',
     `created_at`  timestamp(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) COMMENT '创建时间',

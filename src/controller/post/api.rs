@@ -1,16 +1,18 @@
+use std::sync::Arc;
+
+use axum::{Json, TypedHeader};
+use axum::extract::State;
+use axum::headers::Authorization;
+use axum::headers::authorization::Bearer;
+use axum::http::StatusCode;
+use sea_orm::{ActiveModelTrait, DbErr, EntityTrait, TransactionTrait};
+use sea_orm::ActiveValue::Set;
+use serde_json::{json, Value};
+
+use crate::AppState;
 use crate::controller::post::request::PublishPostRequest;
 use crate::entities::{media, posts};
 use crate::utils::user::get_user_from_token;
-use crate::AppState;
-use axum::extract::State;
-use axum::headers::authorization::Bearer;
-use axum::headers::Authorization;
-use axum::http::StatusCode;
-use axum::{Json, TypedHeader};
-use sea_orm::ActiveValue::Set;
-use sea_orm::{ActiveModelTrait, DbErr, EntityTrait, TransactionTrait};
-use serde_json::{json, Value};
-use std::sync::Arc;
 
 // 发布帖子
 pub async fn add_post(
@@ -33,8 +35,8 @@ pub async fn add_post(
                     description: Set(form_data.description.to_owned()),
                     ..Default::default()
                 }
-                .insert(txn)
-                .await;
+                    .insert(txn)
+                    .await;
                 let post = match post_res {
                     Ok(post) => post,
                     Err(db_err) => {
@@ -42,6 +44,7 @@ pub async fn add_post(
                     }
                 };
 
+                let mut index = 0;
                 for media_id in &form_data.media_ids {
                     let media_model = match media::Entity::find_by_id(media_id.to_owned())
                         .one(txn)
@@ -68,7 +71,9 @@ pub async fn add_post(
                     };
                     let mut media: media::ActiveModel = media_model.into();
                     media.post_id = Set(Some(post.id.to_owned()));
+                    media.sort = Set(Some(index));
                     media.update(txn).await?;
+                    index += 1;
                 }
                 Ok(post)
             })
