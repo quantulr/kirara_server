@@ -6,3 +6,10 @@ pub struct PublishPostRequest {
     pub description: Option<String>,
     pub media_ids: Vec<i32>,
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Pagination {
+    pub page: u64,
+    pub per_page: u64,
+}
