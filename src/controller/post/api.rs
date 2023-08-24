@@ -7,15 +7,14 @@ use axum::http::StatusCode;
 use axum::{Json, TypedHeader};
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, PaginatorTrait,
-    QueryFilter, QueryOrder, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    TransactionTrait,
 };
 
 use serde_json::{json, Value};
 
 use crate::controller::post::request::{Pagination, PublishPostRequest};
 use crate::controller::post::response::{PostListResponse, PostResponse};
-
 
 use crate::entities::{media, posts};
 use crate::utils::user::get_user_from_token;
@@ -108,7 +107,6 @@ pub async fn post_list(
     let paginator = posts::Entity::find()
         .order_by_desc(posts::Column::CreatedAt)
         .paginate(conn, per_page);
-
     let post_list = paginator.fetch_page(page - 1).await;
     let num_items_and_pages = paginator.num_items_and_pages().await;
     match (post_list, num_items_and_pages) {
