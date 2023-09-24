@@ -1,7 +1,11 @@
+use minio::s3::client::Client;
+use minio::s3::creds::StaticProvider;
+use minio::s3::http::BaseUrl;
 use std::env;
 use std::sync::Arc;
 
 use sea_orm::{Database, DatabaseConnection};
+
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
@@ -14,11 +18,13 @@ mod controller;
 mod entities;
 mod middleware;
 mod routes;
+mod services;
 mod utils;
 
 #[derive(Clone)]
 pub struct AppState {
     conn: DatabaseConnection,
+    // minio_client: Client,
     upload_path: String,
     jwt_secret: String,
     wsrv_nl_port: String,
@@ -31,6 +37,7 @@ async fn main() {
     let upload_path = env::var("UPLOAD_PATH").expect("UPLOAD_PATH is not set in .env file");
     let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET is not set in .env file");
     let wsrv_nl_port = env::var("WSRV_NL_PORT").expect("WSRV_NL_PORT is not set in .env file");
+
     tracing_subscriber::registry()
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -44,12 +51,15 @@ async fn main() {
     let conn = Database::connect(db_url)
         .await
         .expect("Database connection failed");
+
     let state = AppState {
         conn,
+        // minio_client,
         upload_path,
         jwt_secret,
         wsrv_nl_port,
     };
+
     let app = create_routes(Arc::new(state)).layer(TraceLayer::new_for_http());
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())

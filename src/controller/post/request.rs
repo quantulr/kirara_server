@@ -10,6 +10,7 @@ pub struct PublishPostRequest {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Pagination {
-    pub page: u64,
+    pub before: Option<i64>,
+    pub after: Option<i64>,
     pub per_page: u64,
 }

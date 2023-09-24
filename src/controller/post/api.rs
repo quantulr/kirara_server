@@ -5,9 +5,10 @@ use axum::headers::authorization::Bearer;
 use axum::headers::Authorization;
 use axum::http::StatusCode;
 use axum::{Json, TypedHeader};
+use sea_orm::prelude::DateTime;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
     TransactionTrait,
 };
 
@@ -102,18 +103,61 @@ pub async fn post_list(
     let conn = &state.conn;
 
     let pagination = query.0;
-    let page = pagination.page;
+    // let page = pagination.page;
+    let before = pagination.before;
+    let after = pagination.after;
     let per_page = pagination.per_page;
-    let paginator = posts::Entity::find()
-        .order_by_desc(posts::Column::CreatedAt)
-        .paginate(conn, per_page);
-    let post_list = paginator.fetch_page(page - 1).await;
-    let num_items_and_pages = paginator.num_items_and_pages().await;
-    match (post_list, num_items_and_pages) {
-        (Ok(post_list), Ok(item_page_count)) => {
-            // let media_list = media::Entity::find().filter(media::Column::PostId.eq());
+    let post_vec = match (before, after) {
+        (Some(before), Some(after)) => {
+            posts::Entity::find()
+                .filter(
+                    posts::Column::CreatedAt.lt(DateTime::from_timestamp_millis(before)
+                        .expect("err")
+                        .and_utc()),
+                )
+                .filter(
+                    posts::Column::CreatedAt
+                        .gt(DateTime::from_timestamp_millis(after).expect("err")),
+                )
+                .order_by_desc(posts::Column::CreatedAt)
+                .limit(per_page)
+                .all(conn)
+                .await
+        }
+        (None, Some(after)) => {
+            posts::Entity::find()
+                .filter(
+                    posts::Column::CreatedAt
+                        .gt(DateTime::from_timestamp_millis(after).expect("err")),
+                )
+                .order_by_desc(posts::Column::CreatedAt)
+                .limit(per_page)
+                .all(conn)
+                .await
+        }
+        (Some(before), None) => {
+            posts::Entity::find()
+                .filter(
+                    posts::Column::CreatedAt
+                        .lt(DateTime::from_timestamp_millis(before).expect("err")),
+                )
+                .order_by_desc(posts::Column::CreatedAt)
+                .limit(per_page)
+                .all(conn)
+                .await
+        }
+        _ => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"message":"列表查询失败"})),
+            ));
+        }
+    };
+
+    match post_vec {
+        Ok(list) => {
             let mut post_list_with_media: Vec<PostResponse> = Vec::new();
-            for post in &post_list {
+            for post in &list {
                 let media_list = media::Entity::find()
                     .filter(media::Column::PostId.eq(post.id))
                     .order_by_asc(media::Column::Sort)
@@ -141,16 +185,13 @@ pub async fn post_list(
                     }
                 };
             }
-            let has_next = page < item_page_count.number_of_pages;
-            let image_history_response = PostListResponse {
+            let post_list_response = PostListResponse {
+                total: 0,
                 items: post_list_with_media,
-                total: item_page_count.number_of_items,
-                total_pages: item_page_count.number_of_pages,
-                has_next,
             };
-            Ok(Json(image_history_response))
+            Ok(Json(post_list_response))
         }
-        _ => Err((
+        Err(_) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"message":"列表查询失败"})),
         )),

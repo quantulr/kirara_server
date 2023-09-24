@@ -6,8 +6,6 @@ use serde_derive::{Deserialize, Serialize};
 #[serde(rename_all = "camelCase")]
 pub struct PostListResponse {
     pub total: u64,
-    pub total_pages: u64,
-    pub has_next: bool,
     pub items: Vec<PostResponse>,
 }
 
