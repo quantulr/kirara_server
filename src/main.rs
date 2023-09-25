@@ -1,6 +1,3 @@
-use minio::s3::client::Client;
-use minio::s3::creds::StaticProvider;
-use minio::s3::http::BaseUrl;
 use std::env;
 use std::sync::Arc;
 

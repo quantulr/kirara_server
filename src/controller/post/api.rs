@@ -103,7 +103,6 @@ pub async fn post_list(
     let conn = &state.conn;
 
     let pagination = query.0;
-    // let page = pagination.page;
     let before = pagination.before;
     let after = pagination.after;
     let per_page = pagination.per_page;
@@ -111,9 +110,8 @@ pub async fn post_list(
         (Some(before), Some(after)) => {
             posts::Entity::find()
                 .filter(
-                    posts::Column::CreatedAt.lt(DateTime::from_timestamp_millis(before)
-                        .expect("err")
-                        .and_utc()),
+                    posts::Column::CreatedAt
+                        .lte(DateTime::from_timestamp_millis(before).expect("err")),
                 )
                 .filter(
                     posts::Column::CreatedAt
@@ -139,7 +137,7 @@ pub async fn post_list(
             posts::Entity::find()
                 .filter(
                     posts::Column::CreatedAt
-                        .lt(DateTime::from_timestamp_millis(before).expect("err")),
+                        .lte(DateTime::from_timestamp_millis(before).expect("err")),
                 )
                 .order_by_desc(posts::Column::CreatedAt)
                 .limit(per_page)
@@ -147,10 +145,11 @@ pub async fn post_list(
                 .await
         }
         _ => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"message":"列表查询失败"})),
-            ));
+            posts::Entity::find()
+                .order_by_desc(posts::Column::CreatedAt)
+                .limit(per_page)
+                .all(conn)
+                .await
         }
     };
 
