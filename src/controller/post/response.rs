@@ -7,6 +7,8 @@ use serde_derive::{Deserialize, Serialize};
 pub struct PostListResponse {
     pub total: u64,
     pub items: Vec<PostResponse>,
+    pub prev: Option<i32>,
+    pub next: Option<i32>,
 }
 
 #[derive(Serialize, Deserialize)]

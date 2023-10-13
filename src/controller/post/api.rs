@@ -5,11 +5,11 @@ use axum::headers::authorization::Bearer;
 use axum::headers::Authorization;
 use axum::http::StatusCode;
 use axum::{Json, TypedHeader};
-use sea_orm::prelude::DateTime;
+
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, TransactionTrait,
 };
 
 use serde_json::{json, Value};
@@ -103,50 +103,28 @@ pub async fn post_list(
     let conn = &state.conn;
 
     let pagination = query.0;
+
+    let mut cursor = posts::Entity::find().cursor_by(posts::Column::Id);
+
     let before = pagination.before;
     let after = pagination.after;
     let per_page = pagination.per_page;
+    let total = match posts::Entity::find().count(conn).await {
+        Ok(count) => count,
+        Err(_) => {
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"message":"列表查询失败"})),
+            ));
+        }
+    };
     let post_vec = match (before, after) {
-        (Some(before), Some(after)) => {
-            posts::Entity::find()
-                .filter(
-                    posts::Column::CreatedAt
-                        .lte(DateTime::from_timestamp_millis(before).expect("err")),
-                )
-                .filter(
-                    posts::Column::CreatedAt
-                        .gt(DateTime::from_timestamp_millis(after).expect("err")),
-                )
-                .order_by_desc(posts::Column::CreatedAt)
-                .limit(per_page)
-                .all(conn)
-                .await
-        }
-        (None, Some(after)) => {
-            posts::Entity::find()
-                .filter(
-                    posts::Column::CreatedAt
-                        .gt(DateTime::from_timestamp_millis(after).expect("err")),
-                )
-                .order_by_desc(posts::Column::CreatedAt)
-                .limit(per_page)
-                .all(conn)
-                .await
-        }
-        (Some(before), None) => {
-            posts::Entity::find()
-                .filter(
-                    posts::Column::CreatedAt
-                        .lte(DateTime::from_timestamp_millis(before).expect("err")),
-                )
-                .order_by_desc(posts::Column::CreatedAt)
-                .limit(per_page)
-                .all(conn)
-                .await
-        }
+        (Some(before), Some(after)) => cursor.after(after).before(before).all(conn).await,
+        (None, Some(after)) => cursor.after(after).first(per_page).all(conn).await,
+        (Some(before), None) => cursor.before(before).last(per_page).all(conn).await,
         _ => {
             posts::Entity::find()
-                .order_by_desc(posts::Column::CreatedAt)
+                .order_by_desc(posts::Column::Id)
                 .limit(per_page)
                 .all(conn)
                 .await
@@ -184,9 +162,57 @@ pub async fn post_list(
                     }
                 };
             }
+            let mut next_post_id: Option<i32> = None;
+            let mut prev_post_id: Option<i32> = None;
+            match &post_list_with_media.first() {
+                Some(first_post) => {
+                    match posts::Entity::find()
+                        .filter(posts::Column::Id.gt(first_post.id))
+                        .order_by_desc(posts::Column::Id)
+                        .one(conn)
+                        .await
+                    {
+                        Ok(Some(first_post)) => {
+                            prev_post_id = Some(first_post.id);
+                        }
+                        Ok(None) => {}
+                        Err(_) => {
+                            return Err((
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(json!({"message":"列表查询失败"})),
+                            ));
+                        }
+                    }
+                }
+                None => {}
+            }
+            match &post_list_with_media.last() {
+                Some(last_post) => {
+                    match posts::Entity::find()
+                        .filter(posts::Column::Id.lt(last_post.id))
+                        .order_by_desc(posts::Column::Id)
+                        .one(conn)
+                        .await
+                    {
+                        Ok(Some(next_post)) => {
+                            next_post_id = Some(next_post.id);
+                        }
+                        Ok(None) => {}
+                        Err(_) => {
+                            return Err((
+                                StatusCode::INTERNAL_SERVER_ERROR,
+                                Json(json!({"message":"列表查询失败"})),
+                            ));
+                        }
+                    }
+                }
+                None => {}
+            };
             let post_list_response = PostListResponse {
-                total: 0,
+                total,
                 items: post_list_with_media,
+                prev: prev_post_id,
+                next: next_post_id,
             };
             Ok(Json(post_list_response))
         }
