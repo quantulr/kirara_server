@@ -4,6 +4,7 @@ use axum::extract::{Query, State};
 use axum::headers::authorization::Bearer;
 use axum::headers::Authorization;
 use axum::http::StatusCode;
+
 use axum::{Json, TypedHeader};
 
 use sea_orm::ActiveValue::Set;
@@ -104,8 +105,6 @@ pub async fn post_list(
 
     let pagination = query.0;
 
-    let mut cursor = posts::Entity::find().cursor_by(posts::Column::Id);
-
     let before = pagination.before;
     let after = pagination.after;
     let per_page = pagination.per_page;
@@ -119,9 +118,30 @@ pub async fn post_list(
         }
     };
     let post_vec = match (before, after) {
-        (Some(before), Some(after)) => cursor.after(after).before(before).all(conn).await,
-        (None, Some(after)) => cursor.after(after).first(per_page).all(conn).await,
-        (Some(before), None) => cursor.before(before).last(per_page).all(conn).await,
+        (Some(before), Some(after)) => {
+            posts::Entity::find()
+                .filter(posts::Column::Id.gte(after))
+                .filter(posts::Column::Id.lte(before))
+                .order_by_desc(posts::Column::Id)
+                .all(conn)
+                .await
+        }
+        (None, Some(after)) => {
+            posts::Entity::find()
+                .filter(posts::Column::Id.gte(after))
+                .limit(per_page)
+                .order_by_desc(posts::Column::Id)
+                .all(conn)
+                .await
+        }
+        (Some(before), None) => {
+            posts::Entity::find()
+                .filter(posts::Column::Id.lte(before))
+                .limit(per_page)
+                .order_by_desc(posts::Column::Id)
+                .all(conn)
+                .await
+        }
         _ => {
             posts::Entity::find()
                 .order_by_desc(posts::Column::Id)
