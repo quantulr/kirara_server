@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::headers::authorization::Bearer;
 use axum::headers::Authorization;
 use axum::http::StatusCode;
@@ -17,6 +17,7 @@ use serde_json::{json, Value};
 
 use crate::controller::post::request::{Pagination, PublishPostRequest};
 use crate::controller::post::response::{PostListResponse, PostResponse};
+
 
 use crate::entities::{media, posts};
 use crate::utils::user::get_user_from_token;
@@ -91,7 +92,7 @@ pub async fn add_post(
         Ok(post) => Ok(Json(post)),
         Err(err) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({ "error": format!("发布帖子失败: {:?}", err) })),
+            Json(json!({ "message": format!("发布帖子失败: {:?}", err) })),
         )),
     }
 }
@@ -188,7 +189,7 @@ pub async fn post_list(
                 Some(first_post) => {
                     match posts::Entity::find()
                         .filter(posts::Column::Id.gt(first_post.id))
-                        .order_by_desc(posts::Column::Id)
+                        .order_by_asc(posts::Column::Id)
                         .one(conn)
                         .await
                     {
@@ -239,6 +240,48 @@ pub async fn post_list(
         Err(_) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"message":"列表查询失败"})),
+        )),
+    }
+}
+
+// 帖子详情
+pub async fn post_detail(
+    State(state): State<Arc<AppState>>,
+    Path(post_id): Path<i32>,
+) -> Result<Json<PostResponse>, (StatusCode, Json<Value>)> {
+    // 数据库连接
+    let conn = &state.conn;
+    match posts::Entity::find_by_id(post_id).one(conn).await {
+        Ok(Some(post)) => {
+            let media_list = match media::Entity::find()
+                .filter(media::Column::PostId.eq(post.id))
+                .order_by_asc(media::Column::Sort)
+                .all(conn)
+                .await
+            {
+                Ok(media_list) => media_list,
+                Err(err) => {
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({ "message": format!("查询帖子失败: {:?}", err) })),
+                    ));
+                }
+            };
+            let post_response = PostResponse {
+                id: post.id,
+                user_id: post.user_id,
+                media_list,
+                description: post.description,
+                status: post.status,
+                created_at: post.created_at,
+                updated_at: post.updated_at,
+            };
+            Ok(Json(post_response))
+        }
+        Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"message":"未找到帖子"})))),
+        Err(_) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"message" : "帖子查询失败"})),
         )),
     }
 }
