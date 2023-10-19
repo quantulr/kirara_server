@@ -18,7 +18,6 @@ use serde_json::{json, Value};
 use crate::controller::post::request::{Pagination, PublishPostRequest};
 use crate::controller::post::response::{PostListResponse, PostResponse};
 
-
 use crate::entities::{media, posts};
 use crate::utils::user::get_user_from_token;
 use crate::AppState;

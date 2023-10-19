@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 axum = { version = "0.6.18", features = ["multipart", "headers"] }
-bytes = "1.4.0"
 chrono = "0.4.26"
 dotenvy = "0.15.7"
 http-body = "0.4.5"
