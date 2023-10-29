@@ -16,6 +16,7 @@ pub struct PostListResponse {
 pub struct PostResponse {
     pub id: i32,
     pub user_id: i32,
+    pub nickname: String,
     pub media_list: Vec<media::Model>,
     pub description: Option<String>,
     pub status: i8,

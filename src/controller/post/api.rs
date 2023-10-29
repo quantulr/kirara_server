@@ -9,8 +9,8 @@ use axum::{Json, TypedHeader};
 
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
-    QuerySelect, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, DbErr, EntityTrait, ModelTrait, PaginatorTrait, QueryFilter,
+    QueryOrder, QuerySelect, TransactionTrait,
 };
 
 use serde_json::{json, Value};
@@ -18,6 +18,7 @@ use serde_json::{json, Value};
 use crate::controller::post::request::{Pagination, PublishPostRequest};
 use crate::controller::post::response::{PostListResponse, PostResponse};
 
+use crate::entities::prelude::Users;
 use crate::entities::{media, posts};
 use crate::utils::user::get_user_from_token;
 use crate::AppState;
@@ -155,6 +156,15 @@ pub async fn post_list(
         Ok(list) => {
             let mut post_list_with_media: Vec<PostResponse> = Vec::new();
             for post in &list {
+                let user = match post.find_related(Users).one(conn).await {
+                    Ok(Some(user)) => user,
+                    _ => {
+                        return Err((
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            Json(json!({"message" : "帖子查询失败"})),
+                        ));
+                    }
+                };
                 let media_list = media::Entity::find()
                     .filter(media::Column::PostId.eq(post.id))
                     .order_by_asc(media::Column::Sort)
@@ -166,6 +176,7 @@ pub async fn post_list(
                         let post_response = PostResponse {
                             id: post.id,
                             user_id: post.user_id,
+                            nickname: user.nickname,
                             media_list: media_resp_arr,
                             description: post.description.to_owned(),
                             status: post.status,
@@ -252,6 +263,15 @@ pub async fn post_detail(
     let conn = &state.conn;
     match posts::Entity::find_by_id(post_id).one(conn).await {
         Ok(Some(post)) => {
+            let user = match post.find_related(Users).one(conn).await {
+                Ok(Some(user)) => user,
+                _ => {
+                    return Err((
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(json!({"message" : "帖子查询失败"})),
+                    ));
+                }
+            };
             let media_list = match media::Entity::find()
                 .filter(media::Column::PostId.eq(post.id))
                 .order_by_asc(media::Column::Sort)
@@ -269,6 +289,7 @@ pub async fn post_detail(
             let post_response = PostResponse {
                 id: post.id,
                 user_id: post.user_id,
+                nickname: user.nickname,
                 media_list,
                 description: post.description,
                 status: post.status,
