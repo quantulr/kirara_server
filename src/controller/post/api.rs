@@ -15,8 +15,10 @@ use sea_orm::{
 
 use serde_json::{json, Value};
 
-use crate::controller::post::request::{Pagination, PublishPostRequest};
-use crate::controller::post::response::{PostListResponse, PostResponse};
+use crate::controller::post::request::{Pagination, PostSearchParams, PublishPostRequest};
+use crate::controller::post::response::{
+    PostListResponse, PostResponse, PostSearch, PostSearchResults,
+};
 
 use crate::entities::prelude::Users;
 use crate::entities::{media, posts};
@@ -299,6 +301,37 @@ pub async fn post_detail(
             Ok(Json(post_response))
         }
         Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"message":"未找到帖子"})))),
+        Err(_) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"message" : "帖子查询失败"})),
+        )),
+    }
+}
+
+pub async fn search_post(
+    State(state): State<Arc<AppState>>,
+    query: Query<PostSearchParams>,
+) -> Result<Json<PostSearchResults>, (StatusCode, Json<Value>)> {
+    let keywords = &query.keywords;
+    let meilisearch_client = &state.meilisearch_client;
+    println!("{}", keywords);
+    match meilisearch_client
+        .index("posts")
+        .search()
+        .with_query(keywords)
+        .execute::<PostSearch>()
+        .await
+    {
+        Ok(posts) => {
+            let mut results: Vec<PostSearch> = vec![];
+
+            for result in posts.hits {
+                results.push(result.result)
+            }
+            let result = PostSearchResults { list: results };
+            let _vec = vec!["hello".to_string(), "world".to_string()];
+            Ok(Json(result))
+        }
         Err(_) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"message" : "帖子查询失败"})),

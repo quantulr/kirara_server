@@ -23,3 +23,18 @@ pub struct PostResponse {
     pub created_at: DateTimeUtc,
     pub updated_at: DateTimeUtc,
 }
+
+#[derive(Deserialize, Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct PostSearch {
+    pub id: i32,
+    pub username: String,
+    pub nickname: String,
+    pub description: Option<String>,
+}
+
+#[derive(Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostSearchResults {
+    pub(crate) list: Vec<PostSearch>,
+}

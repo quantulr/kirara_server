@@ -14,3 +14,12 @@ pub struct Pagination {
     pub after: Option<i64>,
     pub per_page: u64,
 }
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostSearchParams {
+    pub keywords: String,
+    // pub username: String,
+    // pub nickname: String,
+    // pub description: Option<String>,
+}

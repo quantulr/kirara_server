@@ -11,7 +11,8 @@ chrono = "0.4.26"
 dotenvy = "0.15.7"
 http-body = "0.4.5"
 image = "0.24.6"
-jsonwebtoken = "8.3.0"
+jsonwebtoken = "9.1.0"
+meilisearch-sdk = "0.24.3"
 regex = "1.8.4"
 reqwest = { version = "0.11.18", features = ["json", "stream"] }
 sea-orm = { version = "0.12.0-rc.2", features = ["sqlx-mysql", "runtime-actix-native-tls", "macros"] }
