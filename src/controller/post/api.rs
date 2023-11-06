@@ -17,7 +17,7 @@ use serde_json::{json, Value};
 
 use crate::controller::post::request::{Pagination, PostSearchParams, PublishPostRequest};
 use crate::controller::post::response::{
-    PostListResponse, PostResponse, PostSearch, PostSearchResults,
+    PostListResponse, PostResponse, PostSearchResult, PostSearchResults,
 };
 
 use crate::entities::prelude::Users;
@@ -46,8 +46,8 @@ pub async fn add_post(
                     description: Set(form_data.description.to_owned()),
                     ..Default::default()
                 }
-                .insert(txn)
-                .await;
+                    .insert(txn)
+                    .await;
                 let post = match post_res {
                     Ok(post) => post,
                     Err(db_err) => {
@@ -314,22 +314,21 @@ pub async fn search_post(
 ) -> Result<Json<PostSearchResults>, (StatusCode, Json<Value>)> {
     let keywords = &query.keywords;
     let meilisearch_client = &state.meilisearch_client;
-    println!("{}", keywords);
+
     match meilisearch_client
         .index("posts")
         .search()
         .with_query(keywords)
-        .execute::<PostSearch>()
+        .execute::<PostSearchResult>()
         .await
     {
         Ok(posts) => {
-            let mut results: Vec<PostSearch> = vec![];
+            let mut results: Vec<PostSearchResult> = vec![];
 
             for result in posts.hits {
                 results.push(result.result)
             }
-            let result = PostSearchResults { list: results };
-            let _vec = vec!["hello".to_string(), "world".to_string()];
+            let result = PostSearchResults { hits: results };
             Ok(Json(result))
         }
         Err(_) => Err((

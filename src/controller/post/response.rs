@@ -26,7 +26,7 @@ pub struct PostResponse {
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct PostSearch {
+pub struct PostSearchResult {
     pub id: i32,
     pub username: String,
     pub nickname: String,
@@ -36,5 +36,5 @@ pub struct PostSearch {
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PostSearchResults {
-    pub(crate) list: Vec<PostSearch>,
+    pub hits: Vec<PostSearchResult>,
 }
