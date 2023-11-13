@@ -21,7 +21,7 @@ use crate::controller::post::response::{
 };
 
 use crate::entities::prelude::Users;
-use crate::entities::{media, posts};
+use crate::entities::{media, posts, users};
 use crate::utils::user::get_user_from_token;
 use crate::AppState;
 
@@ -46,8 +46,8 @@ pub async fn add_post(
                     description: Set(form_data.description.to_owned()),
                     ..Default::default()
                 }
-                    .insert(txn)
-                    .await;
+                .insert(txn)
+                .await;
                 let post = match post_res {
                     Ok(post) => post,
                     Err(db_err) => {
@@ -263,17 +263,12 @@ pub async fn post_detail(
 ) -> Result<Json<PostResponse>, (StatusCode, Json<Value>)> {
     // 数据库连接
     let conn = &state.conn;
-    match posts::Entity::find_by_id(post_id).one(conn).await {
-        Ok(Some(post)) => {
-            let user = match post.find_related(Users).one(conn).await {
-                Ok(Some(user)) => user,
-                _ => {
-                    return Err((
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(json!({"message" : "帖子查询失败"})),
-                    ));
-                }
-            };
+    match posts::Entity::find_by_id(post_id)
+        .find_also_related(users::Entity)
+        .one(conn)
+        .await
+    {
+        Ok(Some((post, Some(user)))) => {
             let media_list = match media::Entity::find()
                 .filter(media::Column::PostId.eq(post.id))
                 .order_by_asc(media::Column::Sort)
@@ -301,7 +296,7 @@ pub async fn post_detail(
             Ok(Json(post_response))
         }
         Ok(None) => Err((StatusCode::NOT_FOUND, Json(json!({"message":"未找到帖子"})))),
-        Err(_) => Err((
+        _ => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"message" : "帖子查询失败"})),
         )),

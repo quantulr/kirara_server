@@ -5,11 +5,10 @@ use axum::body::StreamBody;
 use axum::extract::{Multipart, Path, Query, State, TypedHeader};
 use axum::headers::authorization::Bearer;
 use axum::headers::Authorization;
-use axum::http::{header, HeaderName};
+use axum::http::{header, HeaderName, StatusCode};
 use axum::response::{AppendHeaders, IntoResponse};
 use axum::Json;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
-use reqwest::StatusCode;
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
