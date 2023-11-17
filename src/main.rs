@@ -32,6 +32,7 @@ pub struct AppState {
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
+    let port = env::var("PORT").expect("DATABASE_URL is not set in .env file");
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
     let upload_path = env::var("UPLOAD_PATH").expect("UPLOAD_PATH is not set in .env file");
     let jwt_secret = env::var("JWT_SECRET").expect("JWT_SECRET is not set in .env file");
@@ -69,7 +70,7 @@ async fn main() {
 
     let app = create_routes(Arc::new(state)).layer(TraceLayer::new_for_http());
 
-    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
+    axum::Server::bind(&format!("0.0.0.0:{}", port).parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
