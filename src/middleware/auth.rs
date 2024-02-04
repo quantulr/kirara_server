@@ -1,3 +1,4 @@
+use axum::body::Body;
 use std::sync::Arc;
 
 use axum::extract::State;
@@ -36,10 +37,10 @@ fn should_skip_auth(str: &str, method: &Method) -> bool {
     false
 }
 
-pub async fn auth<B>(
+pub async fn auth(
     State(state): State<Arc<AppState>>,
-    req: Request<B>,
-    next: Next<B>,
+    req: Request<Body>,
+    next: Next,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
     // 如果请求的路径在白名单中，则直接跳过认证
     let skip = should_skip_auth(req.uri().path(), req.method());

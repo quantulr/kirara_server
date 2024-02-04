@@ -10,7 +10,7 @@ use tower_http::services::ServeFile;
 use crate::controller::media::api::{get_media_thumb, get_media_trunk, upload_media};
 use crate::controller::post::api::{add_post, post_detail, post_list, search_post};
 use crate::controller::{
-    image::api::{get_image, get_image_history, image_thumbnail, upload_image},
+    // image::api::{get_image, get_image_history, image_thumbnail, upload_image},
     user::api::{login, register, update_user, user_info},
 };
 use crate::middleware::auth::auth;
@@ -50,17 +50,17 @@ pub fn create_routes(app_state: Arc<AppState>) -> Router {
                 .route("/s/:year/:month/:day/:file_name", get(get_media_trunk))
                 .route("/p/:year/:month/:day/:file_name", get(get_media_thumb)),
         )
-        .nest(
-            "/image",
-            Router::new()
-                .route("/upload", post(upload_image))
-                .route("/:year/:month/:day/:file_name", get(get_image))
-                .route(
-                    "/thumbnail/:year/:month/:day/:file_name",
-                    get(image_thumbnail),
-                )
-                .route("/history", get(get_image_history)),
-        )
+        // .nest(
+        //     "/image",
+        //     Router::new()
+        //         .route("/upload", post(upload_image))
+        //         .route("/:year/:month/:day/:file_name", get(get_image))
+        //         .route(
+        //             "/thumbnail/:year/:month/:day/:file_name",
+        //             get(image_thumbnail),
+        //         )
+        //         .route("/history", get(get_image_history)),
+        // )
         .layer(DefaultBodyLimit::disable())
         .layer(RequestBodyLimitLayer::new(
             4096 * 1024 * 1024, /* 4GB */

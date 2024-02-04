@@ -1,14 +1,16 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::body::{Body, StreamBody};
+use axum::body::Body;
 use axum::extract::{Multipart, Path, State};
-use axum::headers::authorization::Bearer;
-use axum::headers::{Authorization, HeaderValue};
-use axum::http::{header, Request, StatusCode};
-use axum::response::IntoResponse;
-use axum::{Json, TypedHeader};
-use http_body::Limited;
+use axum::http::{header, HeaderValue, Request, StatusCode};
+use axum::response::{IntoResponse, Response};
+use axum::Json;
+use axum_extra::{
+    headers::authorization::{Authorization, Bearer},
+    TypedHeader,
+};
+
 use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{json, Value};
@@ -187,7 +189,7 @@ pub async fn upload_media(
 pub async fn get_media_trunk(
     State(state): State<Arc<AppState>>,
     Path((year, month, day, file_name)): Path<(String, String, String, String)>,
-    req: Request<Limited<Body>>,
+    req: Request<Body>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
     let relative_path = format!("{}/{}/{}/{}", year, month, day, file_name);
     let upload_path = &state.upload_path;
@@ -235,8 +237,8 @@ pub async fn get_media_trunk(
 pub async fn get_media_thumb(
     State(state): State<Arc<AppState>>,
     Path((year, month, day, file_name)): Path<(String, String, String, String)>,
-    req: Request<Limited<Body>>,
-) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
+    req: Request<Body>,
+) -> Result<Response, (StatusCode, Json<Value>)> {
     let conn = &state.conn;
     let upload_path = &state.upload_path;
     let wsrv_nl_port = &state.wsrv_nl_port;
@@ -274,7 +276,7 @@ pub async fn get_media_thumb(
         ))
         .await
         {
-            Ok(res) => res.bytes_stream(),
+            Ok(res) => res,
             Err(err) => {
                 return Err((
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -284,8 +286,10 @@ pub async fn get_media_thumb(
                 ));
             }
         };
-        let stream = StreamBody::new(response);
-        Ok(stream.into_response())
+        let resp_builder = Response::builder();
+        Ok(resp_builder
+            .body(Body::from_stream(response.bytes_stream()))
+            .unwrap())
     } else if is_video(content_type) {
         match ServeFile::new(&video_thumbnail_store_path)
             .oneshot(req)

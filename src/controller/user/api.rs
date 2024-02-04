@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use axum::headers::authorization::Bearer;
-use axum::headers::{Authorization, UserAgent};
+
 use axum::http::StatusCode;
 
-use axum::{Json, TypedHeader};
+use axum::Json;
+use axum_extra::headers::authorization::Bearer;
+use axum_extra::headers::{Authorization, UserAgent};
+use axum_extra::TypedHeader;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use sea_orm::ActiveValue::Set;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};

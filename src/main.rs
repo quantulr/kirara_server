@@ -22,7 +22,6 @@ mod utils;
 #[derive(Clone)]
 pub struct AppState {
     conn: DatabaseConnection,
-    // minio_client: Client,
     upload_path: String,
     jwt_secret: String,
     wsrv_nl_port: String,
@@ -61,7 +60,6 @@ async fn main() {
 
     let state = AppState {
         conn,
-        // minio_client,
         upload_path,
         jwt_secret,
         wsrv_nl_port,
@@ -70,8 +68,8 @@ async fn main() {
 
     let app = create_routes(Arc::new(state)).layer(TraceLayer::new_for_http());
 
-    axum::Server::bind(&format!("0.0.0.0:{}", port).parse().unwrap())
-        .serve(app.into_make_service())
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
         .await
         .unwrap();
+    axum::serve(listener, app).await.unwrap();
 }

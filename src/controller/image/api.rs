@@ -1,13 +1,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::body::StreamBody;
-use axum::extract::{Multipart, Path, Query, State, TypedHeader};
-use axum::headers::authorization::Bearer;
-use axum::headers::Authorization;
+use axum::extract::{Multipart, Path, Query, State};
 use axum::http::{header, HeaderName, StatusCode};
 use axum::response::{AppendHeaders, IntoResponse};
 use axum::Json;
+use axum_extra::headers::authorization::{Authorization, Bearer};
+use axum_extra::TypedHeader;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use sea_orm::ActiveValue::Set;
 use sea_orm::{
@@ -195,13 +194,13 @@ pub async fn upload_image(
                     uid: Set(uid),
                     ..Default::default()
                 }
-                .insert(conn)
-                .await;
+                    .insert(conn)
+                    .await;
                 let model = match model_res {
                     Ok(model) => model,
                     Err(db_err) => {
                         let err_msg = db_err.to_string(); // 获取错误信息
-                                                          // 从本地删除文件
+                        // 从本地删除文件
                         let _ = tokio::fs::remove_file(&target_file_path).await;
                         return Err((StatusCode::NOT_FOUND, Json(json!({ "message": &err_msg }))));
                     }
@@ -227,7 +226,7 @@ pub async fn get_image(
 ) -> Result<
     (
         AppendHeaders<[(HeaderName, String); 2]>,
-        StreamBody<ReaderStream<tokio::fs::File>>,
+        impl IntoResponse,
     ),
     (StatusCode, Json<Value>),
 > {
@@ -364,12 +363,12 @@ pub async fn image_thumbnail(
     Path((year, month, day, file_name)): Path<(String, String, String, String)>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<Value>)> {
     let path = format!("{}/{}/{}/{}", year, month, day, file_name); // 生成文件路径
-                                                                    // "https://wsrv.nl
+    // "https://wsrv.nl
     let body = match reqwest::get(format!(
         "http://192.168.0.136:8080/?url=https://kirara.hodokencho.com/api/image/{}&w=512",
         path
     ))
-    .await
+        .await
     {
         Ok(res) => res.bytes_stream(),
         Err(_err) => {
